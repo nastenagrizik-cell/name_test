@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Topline Generator</title>
+  <link rel="preconnect" href="https://api.fontshare.com">
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+  <style>
+    :root,[data-theme="light"]{--color-bg:#f7f6f2;--color-surface:#f9f8f5;--color-surface-2:#fbfbf9;--color-surface-offset:#f3f0ec;--color-border:#d4d1ca;--color-text:#28251d;--color-text-muted:#6f6d67;--color-text-faint:#9b9891;--color-text-inverse:#f9f8f4;--color-primary:#01696f;--color-primary-hover:#0c4e54;--color-primary-highlight:#cedcd8;--color-error:#a12c7b;--color-success:#437a22;--radius-sm:.375rem;--radius-md:.5rem;--radius-lg:.75rem;--radius-xl:1rem;--shadow-sm:0 1px 2px rgba(0,0,0,.06);--shadow-md:0 10px 32px rgba(0,0,0,.08);--font-body:'Satoshi',Inter,sans-serif;--text-xs:clamp(.75rem,.7rem + .25vw,.875rem);--text-sm:clamp(.875rem,.8rem + .35vw,1rem);--text-base:clamp(1rem,.95rem + .25vw,1.125rem);--text-lg:clamp(1.125rem,1rem + .75vw,1.45rem);--text-xl:clamp(1.45rem,1.1rem + 1.8vw,2.2rem);--space-2:.5rem;--space-3:.75rem;--space-4:1rem;--space-5:1.25rem;--space-6:1.5rem;--space-8:2rem;--space-10:2.5rem;--space-12:3rem;--space-16:4rem;--content:1120px}
+    [data-theme="dark"]{--color-bg:#171614;--color-surface:#1c1b19;--color-surface-2:#201f1d;--color-surface-offset:#1d1c1a;--color-border:#393836;--color-text:#cdccca;--color-text-muted:#97958f;--color-text-faint:#706f6b;--color-text-inverse:#2b2a28;--color-primary:#4f98a3;--color-primary-hover:#227f8b;--color-primary-highlight:#313b3b;--color-error:#d163a7;--color-success:#6daa45;--shadow-sm:0 1px 2px rgba(0,0,0,.2);--shadow-md:0 10px 32px rgba(0,0,0,.3)}
+    *{box-sizing:border-box;margin:0;padding:0} html{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility} body{min-height:100vh;background:var(--color-bg);color:var(--color-text);font:400 var(--text-base)/1.6 var(--font-body)} button,input{font:inherit;color:inherit} a,button,input{transition:.18s ease} .wrap{max-width:var(--content);margin:0 auto;padding:0 var(--space-4)}
+    .header{position:sticky;top:0;z-index:20;border-bottom:1px solid color-mix(in srgb,var(--color-text) 10%, transparent);background:color-mix(in srgb,var(--color-bg) 88%, transparent);backdrop-filter:blur(14px)} .header-inner{display:flex;align-items:center;justify-content:space-between;padding:var(--space-4) 0} .brand{display:flex;gap:var(--space-3);align-items:center} .logo{width:40px;height:40px;border-radius:12px;background:var(--color-surface-2);border:1px solid color-mix(in srgb,var(--color-text) 10%, transparent);display:grid;place-items:center;box-shadow:var(--shadow-sm)} .logo svg{width:22px;height:22px} .brand h1{font-size:var(--text-lg);line-height:1.15} .brand p{font-size:var(--text-sm);color:var(--color-text-muted)} .theme-toggle{width:44px;height:44px;border-radius:999px;border:1px solid color-mix(in srgb,var(--color-text) 10%, transparent);background:var(--color-surface)}
+    .hero{padding:var(--space-8) 0;display:grid;grid-template-columns:1.1fr .9fr;gap:var(--space-6)} .panel{background:var(--color-surface);border:1px solid color-mix(in srgb,var(--color-text) 10%, transparent);border-radius:var(--radius-xl);box-shadow:var(--shadow-md)} .copy,.form,.details{padding:var(--space-8)} .eyebrow{display:inline-flex;padding:.42rem .8rem;border-radius:999px;background:var(--color-primary-highlight);color:var(--color-primary);font-weight:700;font-size:var(--text-xs);letter-spacing:.04em;text-transform:uppercase} h2{margin-top:var(--space-4);font-size:var(--text-xl);line-height:1.06;max-width:14ch} .copy p,.details p{margin-top:var(--space-4);color:var(--color-text-muted)} .bullets{margin-top:var(--space-6);display:grid;gap:var(--space-3)} .bullets li{list-style:none;display:flex;gap:var(--space-3);align-items:flex-start} .dot{width:10px;height:10px;border-radius:999px;background:var(--color-primary);margin-top:.45rem;flex:0 0 auto}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-6);padding-bottom:var(--space-8)} .field{display:grid;gap:var(--space-2)} .field label{font-size:var(--text-sm);font-weight:700} .field small{font-size:var(--text-xs);color:var(--color-text-muted)} .filebox,input[type="text"]{min-height:48px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--color-text) 12%, transparent);background:var(--color-surface-2);border-radius:14px} .filebox input{width:100%} .actions{display:flex;gap:var(--space-3);flex-wrap:wrap;margin-top:var(--space-2)} .btn{min-height:46px;padding:0 18px;border-radius:999px;border:1px solid transparent;font-weight:700;cursor:pointer} .btn-primary{background:var(--color-primary);color:var(--color-text-inverse)} .btn-primary:hover{background:var(--color-primary-hover)} .btn-secondary{background:var(--color-surface-2);border-color:color-mix(in srgb,var(--color-text) 12%, transparent)} .status{margin-top:var(--space-5);padding:var(--space-4);border-radius:14px;background:var(--color-surface-2);font-size:var(--text-sm);white-space:pre-wrap} .status.ok{border:1px solid color-mix(in srgb,var(--color-success) 32%, transparent)} .status.err{border:1px solid color-mix(in srgb,var(--color-error) 32%, transparent)}
+    .meta{display:grid;gap:var(--space-3);margin-top:var(--space-4)} .meta-row{display:flex;justify-content:space-between;gap:var(--space-4);padding-bottom:var(--space-3);border-bottom:1px solid color-mix(in srgb,var(--color-text) 10%, transparent);font-size:var(--text-sm)} .meta-row span:last-child{font-weight:700;text-align:right} .foot{margin-top:var(--space-5);font-size:var(--text-xs);color:var(--color-text-faint)}
+    @media (max-width:920px){.hero,.grid{grid-template-columns:1fr}h2{max-width:none}}
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="wrap header-inner">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><rect x="10" y="14" width="44" height="36" rx="10"></rect><path d="M22 26h20M22 34h12M22 42h20"></path></svg>
+        </div>
+        <div>
+          <h1>Topline Generator</h1>
+          <p>Генерация итогового top-line Excel по базе исследования</p>
+        </div>
+      </div>
+      <button class="theme-toggle" data-theme-toggle aria-label="Переключить тему"></button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <article class="panel copy">
+        <span class="eyebrow">Research automation</span>
+        <h2>Загрузите базу и получите итоговый Excel-файл</h2>
+        <p>Приложение читает исходную книгу, собирает таблицы по закрытым вопросам, считает ТОП-2, формирует лист значимостей по всем вариантам ответа через z-test по долям и готовит лист аудитории.</p>
+        <ul class="bullets">
+          <li><span class="dot"></span><span>Формирует обязательные листы: САММАРИ, Полные таблицы, Значимости, Аудитория.</span></li>
+          <li><span class="dot"></span><span>Работает с дополнительными вопросами в том же потоке, если структура ответа подходит под стандартный расчет.</span></li>
+          <li><span class="dot"></span><span>Готов для деплоя на Render через GitHub-репозиторий.</span></li>
+        </ul>
+      </article>
+
+      <section class="panel form">
+        <div class="field">
+          <label for="projectName">Название проекта</label>
+          <input id="projectName" type="text" placeholder="Например: kapuchino-vishnia-shokolad" />
+        </div>
+        <div class="field" style="margin-top:16px">
+          <label for="fileInput">База исследования (.xlsx)</label>
+          <div class="filebox"><input id="fileInput" type="file" accept=".xlsx,.xls,.csv" /></div>
+          <small>Файл обрабатывается на сервере приложения и сразу превращается в готовый top-line.</small>
+        </div>
+        <div class="actions">
+          <button class="btn btn-secondary" id="inspectBtn">Проверить структуру</button>
+          <button class="btn btn-primary" id="generateBtn">Скачать итоговый Excel</button>
+        </div>
+        <div class="status" id="status">Ожидание действия.</div>
+      </section>
+    </section>
+
+    <section class="grid">
+      <article class="panel details">
+        <h3>Что делает версия v1</h3>
+        <div class="meta">
+          <div class="meta-row"><span>Summary</span><span>ТОП-2 по всем распознанным шкалам 1–5</span></div>
+          <div class="meta-row"><span>Полные таблицы</span><span>Ответы 1–5 + ТОП-2</span></div>
+          <div class="meta-row"><span>Значимости</span><span>Все со всем, 95%, z-test по долям</span></div>
+          <div class="meta-row"><span>Аудитория</span><span>Соцдем и релевантные профильные вопросы</span></div>
+        </div>
+      </article>
+      <article class="panel details">
+        <h3>Что важно учесть</h3>
+        <p>Алгоритм рассчитан на стабильную структуру базы, где один респондент — одна строка, а пропуски остаются пустыми. Если позже понадобится более точный маппинг отдельных служебных переменных, его можно добавить в код без перестройки интерфейса.</p>
+        <p class="foot">Открытый вопрос в этой версии намеренно не обрабатывается.</p>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const toggle = document.querySelector('[data-theme-toggle]');
+      const root = document.documentElement;
+      let theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      function draw() {
+        root.setAttribute('data-theme', theme);
+        toggle.innerHTML = theme === 'dark'
+          ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>'
+          : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+      }
+      draw();
+      toggle.addEventListener('click', () => { theme = theme === 'dark' ? 'light' : 'dark'; draw(); });
+    })();
+
+    const statusBox = document.getElementById('status');
+    const fileInput = document.getElementById('fileInput');
+    const projectNameInput = document.getElementById('projectName');
+
+    function setStatus(message, type = 'ok') {
+      statusBox.textContent = message;
+      statusBox.className = `status ${type}`;
+    }
+
+    async function sendFile(url, asDownload = false) {
+      const file = fileInput.files[0];
+      if (!file) throw new Error('Сначала загрузите базу исследования.');
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('projectName', projectNameInput.value || 'topline-project');
+      const response = await fetch(url, { method: 'POST', body: fd });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({ error: 'Ошибка сервера' }));
+        throw new Error(data.error || 'Ошибка сервера');
+      }
+      if (asDownload) return response.blob();
+      return response.json();
+    }
+
+    document.getElementById('inspectBtn').addEventListener('click', async () => {
+      try {
+        setStatus('Проверяю структуру файла…');
+        const data = await sendFile('/api/inspect');
+        setStatus(`Файл: ${data.fileName}\nСтрок: ${data.rows}\nЛисты: ${data.sheets.join(', ')}\nАудиторные поля: ${data.audienceColumns.join(', ') || 'не найдены'}`);
+      } catch (error) {
+        setStatus(error.message, 'err');
+      }
+    });
+
+    document.getElementById('generateBtn').addEventListener('click', async () => {
+      try {
+        setStatus('Собираю итоговый Excel…');
+        const blob = await sendFile('/api/generate', true);
+        const fileName = (projectNameInput.value || 'topline-project').trim().replace(/\s+/g, '-').toLowerCase() + '.xlsx';
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fileName;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        setStatus('Готово. Файл скачан.');
+      } catch (error) {
+        setStatus(error.message, 'err');
+      }
+    });
+  </script>
+</body>
+</html>
