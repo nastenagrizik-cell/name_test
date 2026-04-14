@@ -1,0 +1,5 @@
+services:
+  - type: web
+    name: topline-generator-production-v3
+    env: static
+    staticPublishPath: .
