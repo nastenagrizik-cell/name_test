@@ -1,3 +1,4 @@
+console.log('app.js loaded, XLSX =', typeof XLSX);
 // app.js
 
 const baseInput = document.getElementById('baseFile');
