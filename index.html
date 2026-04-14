@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ru" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Topline Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+  <style>
+    :root,[data-theme="light"]{--font-body:'Satoshi',Arial,sans-serif;--text-sm:clamp(.875rem,.8rem + .35vw,1rem);--text-base:clamp(1rem,.95rem + .25vw,1.125rem);--text-lg:clamp(1.125rem,1rem + .75vw,1.45rem);--text-xl:clamp(1.7rem,1.3rem + 1.2vw,2.4rem);--space-2:.5rem;--space-3:.75rem;--space-4:1rem;--space-6:1.5rem;--space-8:2rem;--space-12:3rem;--color-bg:#f7f6f2;--color-surface:#f9f8f5;--color-surface-2:#fbfbf9;--color-border:#d4d1ca;--color-divider:#e2dfd8;--color-text:#28251d;--color-text-muted:#73716c;--color-primary:#01696f;--color-primary-hover:#0c4e54;--color-primary-soft:#dbeceb;--shadow-sm:0 1px 2px rgba(0,0,0,.06)}
+    [data-theme="dark"]{--color-bg:#171614;--color-surface:#1c1b19;--color-surface-2:#201f1d;--color-border:#393836;--color-divider:#2b2a28;--color-text:#ece8e0;--color-text-muted:#9c978f;--color-primary:#4f98a3;--color-primary-hover:#68adb6;--color-primary-soft:#243739}
+    *{box-sizing:border-box} body{margin:0;font-family:var(--font-body);font-size:var(--text-base);line-height:1.55;background:var(--color-bg);color:var(--color-text)}
+    .shell{max-width:1120px;margin:0 auto;padding:var(--space-6)} .topbar{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4);margin-bottom:var(--space-6)}
+    .brand{display:flex;align-items:center;gap:12px}.logo{width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,var(--color-primary),#8bbdb6);display:grid;place-items:center;color:#fff;font-weight:700}
+    .panel{background:var(--color-surface);border:1px solid var(--color-border);border-radius:20px;box-shadow:var(--shadow-sm)}
+    .hero{padding:var(--space-8);margin-bottom:var(--space-6)} h1{font-size:var(--text-xl);line-height:1.08;margin:0 0 var(--space-3)} h2{font-size:var(--text-lg);margin:0 0 var(--space-4)} p{margin:0 0 var(--space-4)}
+    .muted{color:var(--color-text-muted)} .small{font-size:var(--text-sm)} .stack{display:grid;gap:var(--space-4)} .field{display:grid;gap:8px} label{font-size:var(--text-sm);font-weight:700}
+    input[type='file'],input[type='text']{width:100%;padding:14px 16px;border-radius:14px;border:1px solid var(--color-border);background:var(--color-bg);color:var(--color-text)}
+    .actions{display:flex;flex-wrap:wrap;gap:12px}.btn{border:0;border-radius:14px;padding:14px 18px;font-weight:700;min-height:48px;cursor:pointer}.btn-primary{background:var(--color-primary);color:#fff}.btn-primary:hover{background:var(--color-primary-hover)}.btn-secondary{background:var(--color-primary-soft);color:var(--color-primary)}.btn-ghost{background:transparent;border:1px solid var(--color-border);color:var(--color-text)}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:var(--space-6)} .card{grid-column:span 12;padding:var(--space-6)} .half{grid-column:span 6}.status{padding:16px 18px;border-radius:16px;background:var(--color-surface-2);border:1px solid var(--color-divider);white-space:pre-wrap;min-height:180px}
+    .status.ok{border-color:#97b9af}.status.warn{border-color:#d9ba82}.status.err{border-color:#d69bbf}.badge{display:inline-flex;align-items:center;padding:8px 12px;border-radius:999px;background:var(--color-primary-soft);color:var(--color-primary);font-size:var(--text-sm);font-weight:700}
+    .checklist{display:grid;gap:10px}.check{padding:12px 14px;border-radius:14px;border:1px solid var(--color-divider);background:var(--color-surface-2)} .okmark{color:#1f7a4b;font-weight:700}.warnmark{color:#9a5b00;font-weight:700}
+    table{width:100%;border-collapse:collapse} th,td{padding:10px 12px;border-bottom:1px solid var(--color-divider);text-align:left;font-size:var(--text-sm)} th{color:var(--color-text-muted)}
+    @media (max-width:900px){.half{grid-column:span 12}}
+  </style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <div class="brand"><div class="logo">TL</div><div><strong>Topline Generator</strong><div class="muted small">Name test topline builder</div></div></div>
+    <button class="btn btn-ghost" id="themeToggle">Тема</button>
+  </div>
+
+  <section class="hero panel stack">
+    <div>
+      <span class="badge">Загрузка базы → проверка → выгрузка XLSX</span>
+      <h1>Соберите итоговый topline из сырой базы исследования.</h1>
+      <p class="muted">Интерфейс рассчитан на monadic тесты названий и собирает итоговую Excel-выгрузку по стандартной структуре.</p>
+    </div>
+    <div class="field">
+      <label for="dataFile">База исследования</label>
+      <input id="dataFile" type="file" accept=".xlsx,.xls,.csv" />
+    </div>
+    <div class="field">
+      <label for="projectName">Название проекта</label>
+      <input id="projectName" type="text" value="Тест названий" />
+    </div>
+    <div class="actions">
+      <button class="btn btn-secondary" id="validateBtn">Проверить базу</button>
+      <button class="btn btn-primary" id="generateBtn">Собрать итоговый XLSX</button>
+    </div>
+  </section>
+
+  <section class="grid">
+    <article class="card half panel">
+      <h2>Статус проверки</h2>
+      <div id="status" class="status">Загрузите файл базы и нажмите «Проверить базу».</div>
+    </article>
+    <article class="card half panel">
+      <h2>Что проверяется</h2>
+      <div class="checklist">
+        <div class="check"><span class="okmark">•</span> Размер базы и число интервью.</div>
+        <div class="check"><span class="okmark">•</span> Наличие monadic-переменной и числа вариантов.</div>
+        <div class="check"><span class="okmark">•</span> Основные шкальные блоки, прямое сравнение, имидж, аудитория.</div>
+        <div class="check"><span class="warnmark">•</span> Предупреждения по нераспознанным или неоднозначным блокам.</div>
+      </div>
+    </article>
+
+    <article class="card panel">
+      <h2>Результирующие листы</h2>
+      <table>
+        <thead><tr><th>Лист</th><th>Что попадает в выгрузку</th></tr></thead>
+        <tbody>
+          <tr><td>САММАРИ</td><td>Ключевые метрики, прямое сравнение, имиджевый блок.</td></tr>
+          <tr><td>полные таблицы</td><td>Распределения по шкалам, TOP-2, single и multi блоки.</td></tr>
+          <tr><td>значимости</td><td>Значимые различия между вариантами.</td></tr>
+          <tr><td>Аудитория</td><td>Пол, возраст, гео и ключевые поведенческие профили.</td></tr>
+        </tbody>
+      </table>
+    </article>
+  </section>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="./assets/app.js"></script>
+</body>
+</html>
