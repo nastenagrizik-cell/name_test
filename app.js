@@ -1,5 +1,3 @@
-console.log('app.js loaded, XLSX =', typeof XLSX);
-
 const baseInput = document.getElementById('baseFile');
 const statusEl = document.getElementById('status');
 const mappingSection = document.getElementById('mappingSection');
@@ -14,45 +12,66 @@ let parsed = null;
 let autoMapping = null;
 let userConfig = null;
 
-console.log('elements:', {
-  baseInput: !!baseInput,
-  statusEl: !!statusEl,
-  mappingSection: !!mappingSection,
-  extraSection: !!extraSection,
-  runSection: !!runSection,
-  standardGroupsEl: !!standardGroupsEl,
-  extraQuestionsEl: !!extraQuestionsEl,
-  runBtn: !!runBtn
-});
-
-function setStatus(text, type = '') {
-  if (!statusEl) return;
-  statusEl.textContent = text;
+function show(msg, type = '') {
+  statusEl.textContent = msg;
   statusEl.className = type ? `status ${type}` : 'status';
 }
 
-function resetUI() {
-  console.log('resetUI called');
-
-  if (mappingSection) mappingSection.style.display = 'none';
-  if (extraSection) extraSection.style.display = 'none';
-  if (runSection) runSection.style.display = 'none';
-  if (standardGroupsEl) standardGroupsEl.innerHTML = '';
-  if (extraQuestionsEl) extraQuestionsEl.innerHTML = '';
-
-  parsed = null;
-  autoMapping = null;
-  userConfig = null;
+function append(msg) {
+  statusEl.textContent += `\n${msg}`;
 }
 
-function renderSuccessInfo(rows, workbook) {
-  console.log('renderSuccessInfo called');
+show('Страница загружена. XLSX = ' + typeof XLSX);
 
-  if (mappingSection) mappingSection.style.display = 'block';
-  if (extraSection) extraSection.style.display = 'block';
-  if (runSection) runSection.style.display = 'block';
+if (!baseInput) {
+  show('Ошибка: input #baseFile не найден', 'error');
+} else {
+  append('input #baseFile найден');
+}
 
-  if (standardGroupsEl) {
+baseInput?.addEventListener('change', async (e) => {
+  show('Событие change сработало');
+
+  const file = e.target.files && e.target.files[0];
+  if (!file) {
+    show('Файл не выбран', 'error');
+    return;
+  }
+
+  baseFile = file;
+  append('Файл выбран: ' + file.name);
+  append('Размер: ' + file.size + ' байт');
+
+  try {
+    append('Читаю arrayBuffer...');
+    const buffer = await file.arrayBuffer();
+    append('arrayBuffer ок: ' + buffer.byteLength + ' байт');
+
+    append('Запускаю XLSX.read...');
+    const workbook = XLSX.read(buffer, { type: 'array' });
+
+    append('Листы: ' + workbook.SheetNames.join(', '));
+
+    if (!workbook.SheetNames.length) {
+      throw new Error('В файле нет листов');
+    }
+
+    const firstSheetName = workbook.SheetNames[0];
+    const firstSheet = workbook.Sheets[firstSheetName];
+    append('Первый лист: ' + firstSheetName);
+
+    const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+    append('Строк считано: ' + rows.length);
+
+    parsed = {
+      header: rows[0] || [],
+      rows
+    };
+
+    mappingSection.style.display = 'block';
+    extraSection.style.display = 'block';
+    runSection.style.display = 'block';
+
     standardGroupsEl.innerHTML = `
       <div class="col-half">
         <div class="mapping-group">
@@ -60,106 +79,46 @@ function renderSuccessInfo(rows, workbook) {
           <div class="mapping-list">
             <div class="mapping-item">
               <label>
-                Найдено строк: <strong>${rows.length}</strong><br>
+                Название файла: <strong>${file.name}</strong><br>
                 Листов: <strong>${workbook.SheetNames.length}</strong><br>
-                Первый лист: <strong>${workbook.SheetNames[0] || '-'}</strong>
+                Строк на первом листе: <strong>${rows.length}</strong>
               </label>
             </div>
           </div>
         </div>
       </div>
     `;
-  }
 
-  if (extraQuestionsEl) {
     extraQuestionsEl.innerHTML = `
       <div class="field">
-        <label>Отладочная информация</label>
+        <label>Результат проверки</label>
         <div class="mapping-list">
           <div class="mapping-item">
             <label>
-              Если ты видишь этот блок, значит:
-              <br>1. файл выбрался,
-              <br>2. событие change сработало,
-              <br>3. XLSX.read отработал,
-              <br>4. интерфейс умеет показывать следующий шаг.
+              Если ты видишь этот блок — файл точно читается, и проблема была не в XLSX.
             </label>
           </div>
         </div>
       </div>
     `;
+
+    show(
+      'Готово.\n' +
+      'XLSX = ' + typeof XLSX + '\n' +
+      'Файл выбран: ' + file.name + '\n' +
+      'Листов: ' + workbook.SheetNames.length + '\n' +
+      'Строк на первом листе: ' + rows.length,
+      'ok'
+    );
+  } catch (err) {
+    show(
+      'Ошибка при чтении файла:\n' +
+      (err && err.message ? err.message : String(err)),
+      'error'
+    );
   }
+});
 
-  setStatus('Файл прочитан. Если дальше пусто, значит проблема уже в основной логике построения интерфейса.', 'ok');
-}
-
-if (!baseInput) {
-  console.error('baseInput not found');
-  setStatus('Ошибка: на странице не найден input #baseFile', 'error');
-} else {
-  baseInput.addEventListener('change', async (e) => {
-    console.log('change fired');
-
-    resetUI();
-
-    const file = e.target.files && e.target.files[0];
-    console.log('selected file =', file);
-
-    if (!file) {
-      console.log('no file selected');
-      setStatus('Файл не выбран.', 'error');
-      return;
-    }
-
-    baseFile = file;
-    setStatus('Читаю файл...');
-
-    try {
-      console.log('before arrayBuffer');
-      const buffer = await file.arrayBuffer();
-      console.log('arrayBuffer ok, bytes =', buffer.byteLength);
-
-      console.log('before XLSX.read');
-      const workbook = XLSX.read(buffer, { type: 'array' });
-      console.log('workbook =', workbook);
-      console.log('sheet names =', workbook.SheetNames);
-
-      if (!workbook.SheetNames || !workbook.SheetNames.length) {
-        throw new Error('В Excel не найдено ни одного листа');
-      }
-
-      const firstSheetName = workbook.SheetNames[0];
-      const firstSheet = workbook.Sheets[firstSheetName];
-      console.log('first sheet name =', firstSheetName);
-      console.log('first sheet =', firstSheet);
-
-      const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
-      console.log('rows count =', rows.length);
-      console.log('first 10 rows =', rows.slice(0, 10));
-
-      parsed = {
-        header: rows[0] || [],
-        rows
-      };
-
-      console.log('parsed =', parsed);
-
-      renderSuccessInfo(rows, workbook);
-    } catch (err) {
-      console.error('read failed:', err);
-      setStatus(
-        'Ошибка при чтении файла: ' + (err && err.message ? err.message : String(err)),
-        'error'
-      );
-    }
-  });
-
-  console.log('change listener attached');
-}
-
-if (runBtn) {
-  runBtn.addEventListener('click', () => {
-    console.log('runBtn clicked');
-    setStatus('Кнопка нажалась. Значит UI живой, а проблема не в клике.', 'ok');
-  });
-}
+runBtn?.addEventListener('click', () => {
+  show('Кнопка "Посчитать топлайн" нажалась. Значит интерфейс живой.', 'ok');
+});
