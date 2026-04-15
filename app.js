@@ -10,9 +10,9 @@ const extraQuestionsEl = document.getElementById('extraQuestions');
 const runBtn = document.getElementById('runBtn');
 
 let baseFile;
-let parsed = null;      // { header, rows }
-let autoMapping = null; // результат автопоиска
-let userConfig = null;  // итоговая конфигурация после UI
+let parsed = null;
+let autoMapping = null;
+let userConfig = null;
 
 if (typeof XLSX !== 'object') {
   if (statusEl) {
@@ -92,8 +92,7 @@ if (typeof XLSX !== 'object') {
 
       const outWb = XLSX.utils.book_new();
 
-      const summarySheet = makeSummarySheet(stdResults, extraResults, concepts);
-      applyPercentFormat(summarySheet, 0);
+      const summarySheet = makeSummarySheetStyled(stdResults, extraResults, concepts, signifRes);
       XLSX.utils.book_append_sheet(outWb, summarySheet, 'САММАРИ');
 
       const fullSheet = makeFullSheet(stdResults, extraResults, concepts);
@@ -179,8 +178,6 @@ function autoDetectMapping(header) {
   };
 
   header.forEach((h, idx) => {
-    const t = (h || '').toLowerCase();
-
     if (h.includes('Оцените, пожалуйста, насколько вам нравится или не нравится каждое из этих названий')) {
       std.like.push(idx);
     }
@@ -287,7 +284,7 @@ function autoDetectMapping(header) {
   return { std, extraCandidates };
 }
 
-// ---------- UI: стандартные вопросы ----------
+// ---------- UI ----------
 
 function renderStandardMappingUI(mapping, header) {
   const groups = [
@@ -339,9 +336,7 @@ function renderStandardMappingUI(mapping, header) {
   });
 }
 
-// ---------- UI: доп. вопросы ----------
-
-function renderExtraQuestionsUI(mapping, header) {
+function renderExtraQuestionsUI(mapping) {
   extraQuestionsEl.innerHTML = '';
 
   if (!mapping.extraCandidates.length) {
@@ -395,9 +390,9 @@ function renderExtraQuestionsUI(mapping, header) {
   });
 }
 
-// ---------- СБОР КОНФИГА ИЗ UI ----------
+// ---------- КОНФИГ ----------
 
-function collectUserConfig(mapping, header) {
+function collectUserConfig(mapping) {
   const stdSelected = {
     like: [],
     fitDish: [],
@@ -473,9 +468,7 @@ function inferConcepts(header, config) {
   const labels = sourceCols.map(colIdx => {
     const text = String(header[colIdx] || '').trim();
     const parts = text.split(' - ');
-    if (parts.length > 1) {
-      return parts[parts.length - 1].trim();
-    }
+    if (parts.length > 1) return parts[parts.length - 1].trim();
     return text;
   });
 
@@ -485,7 +478,7 @@ function inferConcepts(header, config) {
   }));
 }
 
-// ---------- ВСПОМОГАТЕЛЬНОЕ ДЛЯ ДАННЫХ ----------
+// ---------- ВСПОМОГАТЕЛЬНОЕ ----------
 
 function getCell(row, idx) {
   if (idx == null || idx < 0) return null;
@@ -495,7 +488,6 @@ function getCell(row, idx) {
 function parseScaleValue(v) {
   if (v === null || v === undefined || v === '') return null;
   if (typeof v === 'number') return v;
-
   const s = String(v).trim();
   const m = s.match(/^([1-5])/);
   return m ? Number(m[1]) : null;
@@ -507,22 +499,19 @@ function findConceptIndexByHeader(headerText, concepts) {
   for (let i = 0; i < concepts.length; i++) {
     if (text.endsWith(concepts[i].label)) return i;
   }
-
   for (let i = 0; i < concepts.length; i++) {
     if (text.includes(concepts[i].label)) return i;
   }
-
   return -1;
 }
 
-// ---------- РАСЧЁТ СТАНДАРТНЫХ МЕТРИК ----------
+// ---------- РАСЧЁТЫ ----------
 
 function calcStandardBlocks(rows, config, concepts, header) {
   const n = rows.length;
 
   function top2ByCols(colIndexes) {
     const res = Array(concepts.length).fill(0);
-
     rows.forEach(r => {
       colIndexes.forEach((col, i) => {
         if (i >= concepts.length) return;
@@ -530,24 +519,18 @@ function calcStandardBlocks(rows, config, concepts, header) {
         if (v === 4 || v === 5) res[i] += 1;
       });
     });
-
     return res.map(c => c / n);
   }
 
   function dist5(colIndexes) {
     const res = Array.from({ length: concepts.length }, () => ({ '1':0,'2':0,'3':0,'4':0,'5':0 }));
-
     rows.forEach(r => {
       colIndexes.forEach((col, i) => {
         if (i >= concepts.length) return;
         const v = parseScaleValue(getCell(r, col));
-        if (v >= 1 && v <= 5) {
-          const k = String(v);
-          res[i][k] += 1;
-        }
+        if (v >= 1 && v <= 5) res[i][String(v)] += 1;
       });
     });
-
     return res.map(d => {
       const o = {};
       ['1','2','3','4','5'].forEach(k => o[k] = d[k] / n);
@@ -578,10 +561,8 @@ function calcStandardBlocks(rows, config, concepts, header) {
       config.std.image.forEach(({ key, idx }) => {
         const val = String(getCell(r, idx) || '').trim();
         if (!val) return;
-
         const conceptIndex = findConceptIndexByHeader(header[idx], concepts);
         if (conceptIndex === -1) return;
-
         if (result[key]) result[key][conceptIndex] += 1;
       });
     });
@@ -595,7 +576,6 @@ function calcStandardBlocks(rows, config, concepts, header) {
 
   function directSingle(colIndexes) {
     const counts = {};
-
     colIndexes.forEach(idx => {
       rows.forEach(r => {
         const v = String(getCell(r, idx) || '').trim();
@@ -642,9 +622,7 @@ function calcStandardBlocks(rows, config, concepts, header) {
   };
 }
 
-// ---------- РАСЧЁТ ДОП. ВОПРОСОВ ----------
-
-function calcExtraBlocks(rows, config, concepts, header) {
+function calcExtraBlocks(rows, config) {
   const n = rows.length;
   const result = [];
 
@@ -654,12 +632,9 @@ function calcExtraBlocks(rows, config, concepts, header) {
 
     if (type === 'scale5') {
       const counts = { '1':0,'2':0,'3':0,'4':0,'5':0 };
-
       rows.forEach(r => {
         const v = parseScaleValue(getCell(r, idx));
-        if (v >= 1 && v <= 5) {
-          counts[String(v)] += 1;
-        }
+        if (v >= 1 && v <= 5) counts[String(v)] += 1;
       });
 
       const dist = {};
@@ -674,7 +649,6 @@ function calcExtraBlocks(rows, config, concepts, header) {
       });
     } else if (type === 'single') {
       const counts = {};
-
       rows.forEach(r => {
         const v = String(getCell(r, idx) || '').trim();
         if (!v) return;
@@ -697,15 +671,13 @@ function calcExtraBlocks(rows, config, concepts, header) {
   return result;
 }
 
-// ---------- АУДИТОРИЯ ----------
-
-function calcAudience(rows, config, header) {
+function calcAudience(rows, config) {
   const n = rows.length;
 
   function freq(idx) {
     if (idx == null || idx < 0) return [];
-
     const counts = {};
+
     rows.forEach(r => {
       const v = String(getCell(r, idx) || '').trim();
       if (!v) return;
@@ -727,7 +699,7 @@ function calcAudience(rows, config, header) {
   };
 }
 
-// ---------- Z-ТЕСТ ДЛЯ ТОП-2 ----------
+// ---------- ЗНАЧИМОСТИ ----------
 
 function zTest(p1, p2, n1, n2) {
   const p = (p1 * n1 + p2 * n2) / (n1 + n2);
@@ -740,7 +712,9 @@ function calcSignificance(stdRes, extraRes, concepts, n) {
   const alphaZ = 1.96;
   const signif = {
     top2: {},
-    extra: {}
+    extra: {},
+    image: {},
+    directMax: {}
   };
 
   function labelsFor(arr) {
@@ -762,6 +736,18 @@ function calcSignificance(stdRes, extraRes, concepts, n) {
     signif.top2[k] = labelsFor(arr);
   });
 
+  Object.entries(stdRes.image).forEach(([k, vals]) => {
+    signif.image[k] = labelsFor(vals);
+  });
+
+  function markMax(arr) {
+    const max = Math.max(...arr);
+    return arr.map(v => v === max && max > 0);
+  }
+
+  signif.directMax.likeMost = markMax(stdRes.direct.likeMost.perConcept);
+  signif.directMax.buyFirst = markMax(stdRes.direct.buyFirst.perConcept);
+
   extraRes.forEach(er => {
     if (!er.where.includes('signif')) return;
     if (er.kind !== 'scale5') return;
@@ -771,7 +757,7 @@ function calcSignificance(stdRes, extraRes, concepts, n) {
   return signif;
 }
 
-// ---------- ФОРМАТИРОВАНИЕ EXCEL ----------
+// ---------- EXCEL FORMAT ----------
 
 function formatPercentCell(cell, decimals = 0) {
   if (!cell) return;
@@ -782,7 +768,6 @@ function formatPercentCell(cell, decimals = 0) {
 
 function applyPercentFormat(ws, decimals = 0) {
   if (!ws || !ws['!ref']) return ws;
-
   const range = XLSX.utils.decode_range(ws['!ref']);
 
   for (let r = range.s.r; r <= range.e.r; r++) {
@@ -791,76 +776,256 @@ function applyPercentFormat(ws, decimals = 0) {
       const cell = ws[addr];
       if (!cell) continue;
       if (typeof cell.v !== 'number') continue;
-
-      if (cell.v >= 0 && cell.v <= 1) {
-        formatPercentCell(cell, decimals);
-      }
+      if (cell.v >= 0 && cell.v <= 1) formatPercentCell(cell, decimals);
     }
   }
 
   return ws;
 }
 
-// ---------- ФОРМИРОВАНИЕ ЛИСТОВ ----------
+function cellRef(r, c) {
+  return XLSX.utils.encode_cell({ r, c });
+}
 
-function makeSummarySheet(stdRes, extraRes, concepts) {
-  const ws = [];
+function ensureCell(ws, r, c, value = '') {
+  const ref = cellRef(r, c);
+  if (!ws[ref]) ws[ref] = { t: typeof value === 'number' ? 'n' : 's', v: value };
+  return ws[ref];
+}
 
-  ws.push(['САММАРИ: ТОП-2 (сумма оценок 4 и 5)']);
-  ws.push([]);
-  ws.push(['Вариант названий', ...concepts.map(c => c.label)]);
-  ws.push([`База: n=${stdRes.n} респондентов, все значения в долях (0–1)`]);
-  ws.push([]);
+function setCell(ws, r, c, value, style = null) {
+  const ref = cellRef(r, c);
+  ws[ref] = { t: typeof value === 'number' ? 'n' : 's', v: value };
+  if (style) ws[ref].s = style;
+  return ws[ref];
+}
 
-  ws.push(['ОСНОВНЫЕ ПОКАЗАТЕЛИ']);
-  ws.push(['Показатель', ...concepts.map(c => c.label)]);
-  ws.push(['Нравится название (Top‑2)', ...stdRes.top2.like]);
-  ws.push(['Подходит для блюда (Top‑2)', ...stdRes.top2.fitDish]);
-  ws.push(['Подходит для бренда (Top‑2)', ...stdRes.top2.fitBrand]);
-  ws.push(['Намерение посетить БК (Top‑2)', ...stdRes.top2.visitBK]);
-  ws.push(['Намерение купить (Top‑2)', ...stdRes.top2.buyDish]);
-  ws.push([]);
-
-  ws.push(['Прямое сравнение']);
-  ws.push(['Показатель', ...concepts.map(c => c.label), 'Ни одно из них']);
-  ws.push([
-    'Нравится больше всего',
-    ...stdRes.direct.likeMost.perConcept,
-    stdRes.direct.likeMost.none
-  ]);
-  ws.push([
-    'Куплю в первую очередь',
-    ...stdRes.direct.buyFirst.perConcept,
-    stdRes.direct.buyFirst.none
-  ]);
-  ws.push([]);
-
-  ws.push(['ИМИДЖЕВЫЙ БЛОК']);
-  ws.push(['Показатель', ...concepts.map(c => c.label)]);
-
-  Object.entries(stdRes.image).forEach(([k, vals]) => {
-    ws.push([k, ...vals]);
+function mergeRange(ws, sRow, sCol, eRow, eCol) {
+  if (!ws['!merges']) ws['!merges'] = [];
+  ws['!merges'].push({
+    s: { r: sRow, c: sCol },
+    e: { r: eRow, c: eCol }
   });
+}
 
-  const summaryExtras = extraRes.filter(x => x.where.includes('summary'));
-  if (summaryExtras.length) {
-    ws.push([]);
-    ws.push(['ДОПОЛНИТЕЛЬНЫЕ МЕТРИКИ']);
+function hexFill(rgb) {
+  return { patternType: 'solid', fgColor: { rgb } };
+}
 
-    summaryExtras.forEach(er => {
-      if (er.kind === 'scale5') {
-        ws.push([er.title, er.dist.top2]);
-      } else {
-        ws.push([er.title]);
-        ws.push(['Категория', 'Доля']);
-        er.dist.forEach(row => ws.push([row.cat, row.p]));
-      }
-      ws.push([]);
-    });
+const STYLES = {
+  title: {
+    font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 14 },
+    fill: hexFill('1F4E78'),
+    alignment: { horizontal: 'left', vertical: 'center' },
+    border: borderAll()
+  },
+  section: {
+    font: { bold: true, color: { rgb: 'FFFFFF' } },
+    fill: hexFill('1F4E78'),
+    alignment: { horizontal: 'left', vertical: 'center' },
+    border: borderAll()
+  },
+  headerCenter: {
+    font: { bold: true, color: { rgb: 'FFFFFF' } },
+    fill: hexFill('1F4E78'),
+    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+    border: borderAll()
+  },
+  headerLeft: {
+    font: { bold: true, color: { rgb: 'FFFFFF' } },
+    fill: hexFill('1F4E78'),
+    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+    border: borderAll()
+  },
+  label: {
+    alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
+    border: borderAll()
+  },
+  labelBold: {
+    font: { bold: true },
+    alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
+    border: borderAll()
+  },
+  percent: {
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: borderAll()
+  },
+  percentGreen: {
+    alignment: { horizontal: 'center', vertical: 'center' },
+    fill: hexFill('70AD47'),
+    border: borderAll()
+  },
+  legendGreen: {
+    alignment: { horizontal: 'center', vertical: 'center' },
+    fill: hexFill('92D050'),
+    border: borderAll()
+  },
+  legendText: {
+    alignment: { horizontal: 'left', vertical: 'center' },
+    border: borderAll()
+  },
+  base: {
+    alignment: { horizontal: 'left', vertical: 'center' },
+    border: borderAll()
+  }
+};
+
+function borderAll() {
+  return {
+    top: { style: 'thin', color: { rgb: '000000' } },
+    bottom: { style: 'thin', color: { rgb: '000000' } },
+    left: { style: 'thin', color: { rgb: '000000' } },
+    right: { style: 'thin', color: { rgb: '000000' } }
+  };
+}
+
+function isStrong2Plus(arr, index) {
+  return Array.isArray(arr) && Array.isArray(arr[index]) && arr[index].length >= 2;
+}
+
+// ---------- SUMMARY STYLED ----------
+
+function makeSummarySheetStyled(stdRes, extraRes, concepts, signifRes) {
+  const ws = {};
+
+  ws['!cols'] = [
+    { wch: 42 },
+    { wch: 13 },
+    { wch: 13 },
+    { wch: 13 },
+    { wch: 13 },
+    { wch: 13 }
+  ];
+
+  const rows = [];
+  rows.push(['САММАРИ: ТОП-2 (сумма оценок 4 и 5)']);
+  rows.push(['Тестируемые варианты названий', ...concepts.map(c => c.label)]);
+  rows.push([`База: n=${stdRes.n} респондентов | Все значения в %`]);
+  rows.push(['', 'xx', 'значимо выше более, чем 2 других названий']);
+  rows.push(['ОСНОВНЫЕ ПОКАЗАТЕЛИ']);
+  rows.push(['Показатель', ...concepts.map(c => c.label)]);
+  rows.push(['Нравится название', ...stdRes.top2.like]);
+  rows.push(['Подходит для блюда', ...stdRes.top2.fitDish]);
+  rows.push(['Подходит для бренда', ...stdRes.top2.fitBrand]);
+  rows.push(['Намерение посетить БК', ...stdRes.top2.visitBK]);
+  rows.push(['Намерение купить', ...stdRes.top2.buyDish]);
+  rows.push([]);
+  rows.push(['Прямое сравнение']);
+  rows.push(['Нравится больше всего', ...stdRes.direct.likeMost.perConcept]);
+  rows.push(['Куплю в первую очередь', ...stdRes.direct.buyFirst.perConcept]);
+  rows.push([]);
+  rows.push(['ИМИДЖЕВЫЙ БЛОК']);
+  rows.push(['Показатель', ...concepts.map(c => c.label)]);
+
+  const imageKeys = Object.keys(stdRes.image);
+  imageKeys.forEach(k => rows.push([k, ...stdRes.image[k]]));
+
+  XLSX.utils.sheet_add_aoa(ws, rows, { origin: 'A1' });
+
+  applyPercentFormat(ws, 0);
+
+  mergeRange(ws, 0, 0, 0, 4);
+  mergeRange(ws, 2, 0, 2, 4);
+  mergeRange(ws, 4, 0, 4, 4);
+  mergeRange(ws, 12, 0, 12, 4);
+  mergeRange(ws, 16, 0, 16, 4);
+
+  for (let c = 0; c <= 4; c++) {
+    ensureCell(ws, 0, c);
+    ws[cellRef(0, c)].s = STYLES.title;
   }
 
-  return XLSX.utils.aoa_to_sheet(ws);
+  setCell(ws, 1, 0, 'Тестируемые варианты названий', STYLES.headerCenter);
+  for (let i = 0; i < concepts.length; i++) {
+    setCell(ws, 1, i + 1, concepts[i].label, STYLES.headerCenter);
+  }
+
+  for (let c = 0; c <= 4; c++) {
+    ensureCell(ws, 2, c);
+    ws[cellRef(2, c)].s = STYLES.base;
+  }
+
+  setCell(ws, 3, 1, 'xx', STYLES.legendGreen);
+  setCell(ws, 3, 2, 'значимо выше более, чем 2 других названий', STYLES.legendText);
+  mergeRange(ws, 3, 2, 3, 4);
+
+  for (let c = 0; c <= 4; c++) {
+    ensureCell(ws, 4, c);
+    ws[cellRef(4, c)].s = STYLES.section;
+  }
+
+  setCell(ws, 5, 0, 'Показатель', STYLES.headerCenter);
+  for (let i = 0; i < concepts.length; i++) {
+    setCell(ws, 5, i + 1, concepts[i].label, STYLES.headerCenter);
+  }
+
+  const top2Map = [
+    ['like', 6],
+    ['fitDish', 7],
+    ['fitBrand', 8],
+    ['visitBK', 9],
+    ['buyDish', 10]
+  ];
+
+  top2Map.forEach(([key, rowIndex]) => {
+    ws[cellRef(rowIndex, 0)].s = STYLES.label;
+    for (let i = 0; i < concepts.length; i++) {
+      const cell = ws[cellRef(rowIndex, i + 1)];
+      cell.s = isStrong2Plus(signifRes.top2[key], i) ? STYLES.percentGreen : STYLES.percent;
+    }
+  });
+
+  for (let c = 0; c <= 4; c++) {
+    ensureCell(ws, 12, c);
+    ws[cellRef(12, c)].s = STYLES.section;
+  }
+
+  const directRows = [
+    { row: 13, key: 'likeMost' },
+    { row: 14, key: 'buyFirst' }
+  ];
+
+  directRows.forEach(({ row, key }) => {
+    ws[cellRef(row, 0)].s = STYLES.label;
+    const marks = signifRes.directMax[key];
+    for (let i = 0; i < concepts.length; i++) {
+      const cell = ws[cellRef(row, i + 1)];
+      cell.s = marks[i] ? STYLES.percentGreen : STYLES.percent;
+    }
+  });
+
+  for (let c = 0; c <= 4; c++) {
+    ensureCell(ws, 16, c);
+    ws[cellRef(16, c)].s = STYLES.section;
+  }
+
+  setCell(ws, 17, 0, 'Показатель', STYLES.headerCenter);
+  for (let i = 0; i < concepts.length; i++) {
+    setCell(ws, 17, i + 1, concepts[i].label, STYLES.headerCenter);
+  }
+
+  imageKeys.forEach((key, idx) => {
+    const row = 18 + idx;
+    ws[cellRef(row, 0)].s = STYLES.label;
+    for (let i = 0; i < concepts.length; i++) {
+      const cell = ws[cellRef(row, i + 1)];
+      cell.s = isStrong2Plus(signifRes.image[key], i) ? STYLES.percentGreen : STYLES.percent;
+    }
+  });
+
+  ws['!rows'] = [];
+  ws['!rows'][0] = { hpt: 22 };
+  ws['!rows'][1] = { hpt: 32 };
+
+  ws['!ref'] = XLSX.utils.encode_range({
+    s: { r: 0, c: 0 },
+    e: { r: 18 + imageKeys.length - 1, c: 4 }
+  });
+
+  return ws;
 }
+
+// ---------- ДРУГИЕ ЛИСТЫ ОСТАВЛЯЕМ КАК ЕСТЬ ----------
 
 function makeFullSheet(stdRes, extraRes, concepts) {
   const ws = [];
