@@ -1,185 +1,255 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <title>Topline Naming Tool</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700&display=swap">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Topline generator</title>
   <style>
     :root {
-      --text-xs:   clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
-      --text-sm:   clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
-      --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
-      --text-lg:   clamp(1.125rem, 1rem + 0.75vw, 1.5rem);
-      --text-xl:   clamp(1.5rem, 1.2rem + 1.25vw, 2.25rem);
-      --space-2: 0.5rem;
-      --space-3: 0.75rem;
-      --space-4: 1rem;
-      --space-6: 1.5rem;
-      --space-8: 2rem;
-      --color-bg: #f7f6f2;
-      --color-surface: #fbfbf9;
-      --color-border: #d4d1ca;
-      --color-text: #28251d;
-      --color-muted: #7a7974;
-      --color-primary: #01696f;
-      --color-error: #a12c7b;
-      --radius-md: 0.5rem;
-      --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #d1d5db;
+      --accent: #2563eb;
+      --accent-dark: #1d4ed8;
+      --ok: #0f9d58;
+      --error: #d93025;
     }
-    * { box-sizing:border-box; margin:0; padding:0; }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      min-height:100vh;
-      font-family:"Satoshi",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-      font-size:var(--text-base);
-      color:var(--color-text);
-      background:var(--color-bg);
-      line-height:1.6;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
     }
-    .page { max-width:960px; margin:0 auto; padding:var(--space-8) var(--space-4); }
-    header { margin-bottom:var(--space-6); }
-    h1 { font-size:var(--text-xl); margin-bottom:var(--space-2); }
-    p.lead { color:var(--color-muted); max-width:52ch; }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      margin: 0 0 24px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
     .card {
-      background:var(--color-surface);
-      border:1px solid var(--color-border);
-      border-radius:var(--radius-md);
-      padding:var(--space-6) var(--space-4);
-      box-shadow:var(--shadow-sm);
-      margin-bottom:var(--space-4);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
     }
-    label { font-size:var(--text-sm); font-weight:500; display:block; margin-bottom:var(--space-2); }
-    input[type="file"] {
-      display:block;
-      width:100%;
-      padding:0.6rem 0.9rem;
-      border-radius:var(--radius-md);
-      border:1px solid var(--color-border);
-      background:white;
-      font-size:var(--text-sm);
+
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 20px;
     }
-    button {
-      margin-top:var(--space-4);
-      padding:0.65rem 1.5rem;
-      border-radius:9999px;
-      border:none;
-      background:var(--color-primary);
-      color:white;
-      font-size:var(--text-sm);
-      font-weight:500;
-      cursor:pointer;
+
+    .field {
+      margin-bottom: 16px;
     }
-    button:disabled { opacity:0.55; cursor:default; }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+
+    input[type="file"],
+    input[type="text"],
+    select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      font-size: 14px;
+    }
+
+    .row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .col-half {
+      flex: 1 1 420px;
+      min-width: 280px;
+    }
+
+    .btn {
+      appearance: none;
+      border: 0;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #fff;
+      padding: 12px 18px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .btn:hover {
+      background: var(--accent-dark);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
     .status {
-      margin-top:var(--space-4);
-      font-size:var(--text-sm);
-      color:var(--color-muted);
-      white-space:pre-line;
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: #eef2ff;
+      border: 1px solid #c7d2fe;
+      white-space: pre-line;
+      line-height: 1.45;
     }
-    .status.ok { color:#437a22; }
-    .status.error { color:var(--color-error); }
-    .section-title {
-      font-size:var(--text-lg);
-      margin-bottom:var(--space-3);
+
+    .status.ok {
+      background: #ecfdf3;
+      border-color: #b7ebc6;
+      color: #166534;
     }
-    .mapping-group { margin-bottom:var(--space-4); }
-    .mapping-group-title { font-weight:600; font-size:var(--text-sm); margin-bottom:var(--space-2); }
-    .mapping-list { border:1px solid var(--color-border); border-radius:var(--radius-md); padding:var(--space-2); max-height:220px; overflow:auto; background:white; }
-    .mapping-item { display:flex; align-items:flex-start; gap:0.5rem; padding:0.25rem 0.15rem; }
-    .mapping-item small { font-size:var(--text-xs); color:var(--color-muted); }
-    .mapping-item label { font-weight:400; margin:0; }
-    .badge { display:inline-block; padding:0 0.4rem; border-radius:999px; border:1px solid var(--color-border); font-size:var(--text-xs); margin-left:0.25rem; color:var(--color-muted); }
-    .row { display:flex; flex-wrap:wrap; gap:var(--space-4); }
-    .col-half { flex:1 1 280px; }
-    .field { margin-bottom:var(--space-3); }
-    .field input[type="text"], .field select {
-      width:100%;
-      padding:0.4rem 0.7rem;
-      border-radius:var(--radius-md);
-      border:1px solid var(--color-border);
-      font-size:var(--text-sm);
-      background:white;
+
+    .status.error {
+      background: #fef2f2;
+      border-color: #fecaca;
+      color: #991b1b;
     }
-    .pill-checkboxes { display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:0.3rem; }
+
+    .mapping-group {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      background: #fafafa;
+    }
+
+    .mapping-group-title {
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .mapping-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .mapping-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 8px 10px;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+    }
+
+    .mapping-item input {
+      margin-top: 2px;
+    }
+
+    .mapping-item label {
+      margin: 0;
+      font-weight: 400;
+    }
+
+    .pill-checkboxes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
     .pill-checkboxes label {
-      border-radius:999px;
-      border:1px solid var(--color-border);
-      padding:0.2rem 0.6rem;
-      font-size:var(--text-xs);
-      display:inline-flex;
-      align-items:center;
-      gap:0.25rem;
-      cursor:pointer;
-      background:white;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0;
+      font-weight: 400;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: #fff;
     }
-    .pill-checkboxes input { margin:0; }
-    hr { border:none; border-top:1px solid var(--color-border); margin:var(--space-4) 0; }
-    @media (max-width:600px) {
-      .card { padding:var(--space-4) var(--space-3); }
+
+    small {
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (max-width: 700px) {
+      .container {
+        padding: 16px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .card {
+        padding: 16px;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="page">
-    <header>
-      <h1>Topline Naming Tool</h1>
-      <p class="lead">
-        Загрузите Excel с базой исследования → подтвердите найденные вопросы → получите топлайн (САММАРИ, полные таблицы, значимости, аудитория).
-      </p>
-    </header>
+  <div class="container">
+    <h1>Topline generator</h1>
+    <p class="subtitle">
+      Загрузите Excel-базу, проверьте найденные вопросы и сформируйте topline в Excel.
+    </p>
 
-    <main>
-      <section class="card">
-        <label for="baseFile">База исследования (Excel *.xlsx)</label>
-        <input id="baseFile" type="file" accept=".xlsx,.xls" />
-        <div id="status" class="status">VERSION 7
-Если ты видишь это сообщение — открылся новый index.html</div>
-      </section>
+    <div class="card">
+      <h2>1. Загрузка базы</h2>
 
-      <section class="card" id="mappingSection" style="display:none;">
-        <div class="section-title">Шаг 1. Стандартные вопросы</div>
-        <p class="status">
-Отметьте, какие найденные блоки использовать как стандартные метрики.
-Формулировки ищутся по ключевым словам и не завязаны на конкретное блюдо.
-        </p>
+      <div class="field">
+        <label for="baseFile">Файл базы (.xlsx)</label>
+        <input type="file" id="baseFile" accept=".xlsx,.xls">
+      </div>
 
-        <div class="row" id="standardGroups"></div>
-      </section>
+      <div id="status" class="status">
+        Загрузите файл базы, чтобы начать.
+      </div>
+    </div>
 
-      <section class="card" id="extraSection" style="display:none;">
-        <div class="section-title">Шаг 2. Дополнительные закрытые вопросы</div>
-        <p class="status">
-Неразобранные закрытые вопросы. Для каждого можно задать тип метрики и куда выводить.
-Пока поддерживаются: шкала 1–5 (Top‑2) и single choice (один вариант ответа).
-        </p>
+    <div class="card" id="mappingSection" style="display:none;">
+      <h2>2. Найденные стандартные вопросы</h2>
+      <div id="standardGroups" class="row"></div>
+    </div>
 
-        <div id="extraQuestions"></div>
-      </section>
+    <div class="card" id="extraSection" style="display:none;">
+      <h2>3. Дополнительные метрики</h2>
+      <div id="extraQuestions"></div>
+    </div>
 
-      <section class="card" id="runSection" style="display:none;">
-        <button id="runBtn">Посчитать топлайн</button>
-      </section>
-    </main>
+    <div class="card" id="runSection" style="display:none;">
+      <h2>4. Расчёт</h2>
+      <button id="runBtn" class="btn">Посчитать топлайн</button>
+    </div>
   </div>
 
- <script>
-  (function () {
-    var s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    s.onload = function () {
-      var a = document.createElement('script');
-      a.src = 'app.js?v=7';
-      document.body.appendChild(a);
-    };
-    s.onerror = function () {
-      var status = document.getElementById('status');
-      if (status) {
-        status.textContent = 'VERSION 7\nОшибка: библиотека XLSX не загрузилась (CDNJS)';
-        status.className = 'status error';
-      }
-    };
-    document.body.appendChild(s);
-  })();
-</script>
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+  <script defer src="./app.js"></script>
 </body>
 </html>
