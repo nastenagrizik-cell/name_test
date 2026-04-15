@@ -14,7 +14,6 @@ let parsed = null;      // { header, rows }
 let autoMapping = null; // результат автопоиска
 let userConfig = null;  // итоговая конфигурация после UI
 
-// защитная проверка на наличие XLSX
 if (typeof XLSX !== 'object') {
   if (statusEl) {
     statusEl.textContent = 'Ошибка: библиотека XLSX не загружена. Попробуйте обновить страницу.';
@@ -26,15 +25,17 @@ if (typeof XLSX !== 'object') {
     statusEl.className = 'status error';
   }
 } else {
-
   baseInput.addEventListener('change', async e => {
     baseFile = e.target.files[0] || null;
     resetState();
+
     if (!baseFile) {
       status('Файл не выбран');
       return;
     }
+
     status('Читаю базу...\nЭто может занять до минуты.');
+
     try {
       const arrayBuffer = await baseFile.arrayBuffer();
       const wb = XLSX.read(arrayBuffer, { type: 'array' });
@@ -53,6 +54,7 @@ if (typeof XLSX !== 'object') {
       mappingSection.style.display = '';
       extraSection.style.display = '';
       runSection.style.display = '';
+
       status(
         'База загружена. Проверьте найденные вопросы и доп.метрики, затем нажмите «Посчитать топлайн».',
         true
@@ -68,6 +70,7 @@ if (typeof XLSX !== 'object') {
       status('Сначала загрузите файл и дождитесь определения вопросов.', false, true);
       return;
     }
+
     try {
       userConfig = collectUserConfig(autoMapping, parsed.header);
     } catch (e) {
@@ -85,29 +88,28 @@ if (typeof XLSX !== 'object') {
       const stdResults = calcStandardBlocks(rows, userConfig, concepts, header);
       const extraResults = calcExtraBlocks(rows, userConfig, concepts, header);
       const audienceRes = calcAudience(rows, userConfig, header);
-
       const signifRes = calcSignificance(stdResults, extraResults, concepts, rows.length);
 
       const outWb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(outWb,
-        makeSummarySheet(stdResults, extraResults, concepts),
-        'САММАРИ'
-      );
-      XLSX.utils.book_append_sheet(outWb,
-        makeFullSheet(stdResults, extraResults, concepts),
-        'полные таблицы'
-      );
-      XLSX.utils.book_append_sheet(outWb,
-        makeSignifSheet(signifRes, concepts),
-        'значимости'
-      );
-      XLSX.utils.book_append_sheet(outWb,
-        makeAudienceSheet(audienceRes),
-        'Аудитория'
-      );
+
+      const summarySheet = makeSummarySheet(stdResults, extraResults, concepts);
+      applyPercentFormat(summarySheet, 0);
+      XLSX.utils.book_append_sheet(outWb, summarySheet, 'САММАРИ');
+
+      const fullSheet = makeFullSheet(stdResults, extraResults, concepts);
+      applyPercentFormat(fullSheet, 0);
+      XLSX.utils.book_append_sheet(outWb, fullSheet, 'полные таблицы');
+
+      const signifSheet = makeSignifSheet(signifRes, concepts);
+      XLSX.utils.book_append_sheet(outWb, signifSheet, 'значимости');
+
+      const audienceSheet = makeAudienceSheet(audienceRes);
+      applyPercentFormat(audienceSheet, 0);
+      XLSX.utils.book_append_sheet(outWb, audienceSheet, 'Аудитория');
 
       const outName = 'Topline_' + (baseFile.name.replace(/\.[^.]+$/, '') || 'output') + '.xlsx';
       XLSX.writeFile(outWb, outName);
+
       status('Готово. Файл ' + outName + ' сохранён.', true);
     } catch (e) {
       console.error(e);
@@ -124,6 +126,7 @@ function resetState() {
   parsed = null;
   autoMapping = null;
   userConfig = null;
+
   if (mappingSection) mappingSection.style.display = 'none';
   if (extraSection) extraSection.style.display = 'none';
   if (runSection) runSection.style.display = 'none';
@@ -141,9 +144,6 @@ function status(text, ok = false, isError = false) {
 // ---------- ПАРСИНГ БАЗЫ ----------
 
 function splitHeaderRows(data) {
-  // 1-я строка: технические имена переменных
-  // 2-я строка: полные формулировки вопросов
-  // 3-я строка и далее: данные
   if (!data || data.length < 2) {
     return { header: [], rows: [] };
   }
@@ -273,11 +273,13 @@ function autoDetectMapping(header) {
   const extraCandidates = header.map((h, idx) => {
     if (usedIndexes.has(idx)) return null;
     if (!h) return null;
+
     const lower = h.toLowerCase();
     const looksClosed = lower.includes('насколько') ||
                         lower.includes('оцените') ||
                         lower.includes('выберите') ||
                         lower.includes('какое из перечисленных');
+
     if (!looksClosed) return null;
     return { idx, header: h };
   }).filter(Boolean);
@@ -341,12 +343,13 @@ function renderStandardMappingUI(mapping, header) {
 
 function renderExtraQuestionsUI(mapping, header) {
   extraQuestionsEl.innerHTML = '';
+
   if (!mapping.extraCandidates.length) {
     extraQuestionsEl.innerHTML = '<div class="status">Дополнительные закрытые вопросы не найдены.</div>';
     return;
   }
 
-  mapping.extraCandidates.forEach((q, i) => {
+  mapping.extraCandidates.forEach(q => {
     const wrap = document.createElement('div');
     wrap.className = 'card';
     wrap.style.marginBottom = '1rem';
@@ -374,6 +377,7 @@ function renderExtraQuestionsUI(mapping, header) {
             </select>
           </div>
         </div>
+
         <div class="col-half">
           <div class="field">
             <label>Куда выводить</label>
@@ -386,6 +390,7 @@ function renderExtraQuestionsUI(mapping, header) {
         </div>
       </div>
     `;
+
     extraQuestionsEl.appendChild(wrap);
   });
 }
@@ -413,6 +418,7 @@ function collectUserConfig(mapping, header) {
   });
 
   const extra = [];
+
   mapping.extraCandidates.forEach(q => {
     const enabledCb = document.querySelector(`input[type="checkbox"][data-extra-idx="${q.idx}"]`);
     if (!enabledCb || !enabledCb.checked) return;
@@ -425,11 +431,14 @@ function collectUserConfig(mapping, header) {
     if (!title) {
       throw new Error('У доп.вопроса "' + q.header + '" не задано название метрики в топлайне.');
     }
+
     const qtype = typeSelect?.value || 'scale5';
     const where = [];
+
     whereWrap.querySelectorAll('input[type="checkbox"]').forEach(cb => {
       if (cb.checked) where.push(cb.value);
     });
+
     if (!where.length) {
       throw new Error('У доп.метрики "' + title + '" не выбрано, куда выводить.');
     }
@@ -449,31 +458,31 @@ function collectUserConfig(mapping, header) {
 // ---------- КОНЦЕПТЫ ----------
 
 function inferConcepts(header, config) {
-  const cols = [
-    ...config.std.like,
-    ...config.std.fitDish,
-    ...config.std.fitBrand,
-    ...config.std.visitBK,
-    ...config.std.buyDish
-  ];
-  const uniqueCols = [...new Set(cols)].sort((a, b) => a - b);
-  if (!uniqueCols.length) {
+  const sourceCols =
+    (config.std.like && config.std.like.length ? config.std.like : null) ||
+    (config.std.fitDish && config.std.fitDish.length ? config.std.fitDish : null) ||
+    (config.std.fitBrand && config.std.fitBrand.length ? config.std.fitBrand : null) ||
+    (config.std.visitBK && config.std.visitBK.length ? config.std.visitBK : null) ||
+    (config.std.buyDish && config.std.buyDish.length ? config.std.buyDish : null) ||
+    [];
+
+  if (!sourceCols.length) {
     return [{ code: 'A', label: 'Название A' }];
   }
 
-  const labels = uniqueCols.map(colIdx => {
-    const text = header[colIdx] || '';
-    const dash = text.lastIndexOf('-');
-    if (dash !== -1) return text.slice(dash + 1).trim();
-    return text.trim();
+  const labels = sourceCols.map(colIdx => {
+    const text = String(header[colIdx] || '').trim();
+    const parts = text.split(' - ');
+    if (parts.length > 1) {
+      return parts[parts.length - 1].trim();
+    }
+    return text;
   });
 
-  const concepts = labels.map((lab, i) => ({
+  return labels.map((lab, i) => ({
     code: String.fromCharCode(65 + i),
     label: lab || `Название ${String.fromCharCode(65 + i)}`
   }));
-
-  return concepts;
 }
 
 // ---------- ВСПОМОГАТЕЛЬНОЕ ДЛЯ ДАННЫХ ----------
@@ -483,34 +492,54 @@ function getCell(row, idx) {
   return row[idx];
 }
 
+function parseScaleValue(v) {
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v === 'number') return v;
+
+  const s = String(v).trim();
+  const m = s.match(/^([1-5])/);
+  return m ? Number(m[1]) : null;
+}
+
+function findConceptIndexByHeader(headerText, concepts) {
+  const text = String(headerText || '').trim();
+
+  for (let i = 0; i < concepts.length; i++) {
+    if (text.endsWith(concepts[i].label)) return i;
+  }
+
+  for (let i = 0; i < concepts.length; i++) {
+    if (text.includes(concepts[i].label)) return i;
+  }
+
+  return -1;
+}
+
 // ---------- РАСЧЁТ СТАНДАРТНЫХ МЕТРИК ----------
 
 function calcStandardBlocks(rows, config, concepts, header) {
   const n = rows.length;
 
-  function parseScaleValue(v) {
-    if (v === null || v === undefined || v === '') return null;
-    if (typeof v === 'number') return v;
-    const s = String(v).trim();
-    const m = s.match(/^([1-5])/);
-    return m ? Number(m[1]) : null;
-  }
-
   function top2ByCols(colIndexes) {
     const res = Array(concepts.length).fill(0);
+
     rows.forEach(r => {
       colIndexes.forEach((col, i) => {
+        if (i >= concepts.length) return;
         const v = parseScaleValue(getCell(r, col));
         if (v === 4 || v === 5) res[i] += 1;
       });
     });
+
     return res.map(c => c / n);
   }
 
   function dist5(colIndexes) {
-    const res = colIndexes.map(() => ({ '1':0,'2':0,'3':0,'4':0,'5':0 }));
+    const res = Array.from({ length: concepts.length }, () => ({ '1':0,'2':0,'3':0,'4':0,'5':0 }));
+
     rows.forEach(r => {
       colIndexes.forEach((col, i) => {
+        if (i >= concepts.length) return;
         const v = parseScaleValue(getCell(r, col));
         if (v >= 1 && v <= 5) {
           const k = String(v);
@@ -518,6 +547,7 @@ function calcStandardBlocks(rows, config, concepts, header) {
         }
       });
     });
+
     return res.map(d => {
       const o = {};
       ['1','2','3','4','5'].forEach(k => o[k] = d[k] / n);
@@ -538,6 +568,7 @@ function calcStandardBlocks(rows, config, concepts, header) {
       'Оригинальное, отличается от других',
       'Хочется рассказать/поделиться в соц.сетях'
     ];
+
     const result = {};
     attrList.forEach(name => {
       result[name] = Array(concepts.length).fill(0);
@@ -547,10 +578,11 @@ function calcStandardBlocks(rows, config, concepts, header) {
       config.std.image.forEach(({ key, idx }) => {
         const val = String(getCell(r, idx) || '').trim();
         if (!val) return;
-        const h = header[idx];
-        const foundIndex = concepts.findIndex(c => h.endsWith(c.label));
-        if (foundIndex === -1) return;
-        if (result[key]) result[key][foundIndex] += 1;
+
+        const conceptIndex = findConceptIndexByHeader(header[idx], concepts);
+        if (conceptIndex === -1) return;
+
+        if (result[key]) result[key][conceptIndex] += 1;
       });
     });
 
@@ -563,6 +595,7 @@ function calcStandardBlocks(rows, config, concepts, header) {
 
   function directSingle(colIndexes) {
     const counts = {};
+
     colIndexes.forEach(idx => {
       rows.forEach(r => {
         const v = String(getCell(r, idx) || '').trim();
@@ -573,12 +606,15 @@ function calcStandardBlocks(rows, config, concepts, header) {
 
     const perConcept = Array(concepts.length).fill(0);
     let none = 0;
+
     concepts.forEach((c, i) => {
       const key = Object.keys(counts).find(k => k.includes(c.label));
       perConcept[i] = key ? counts[key] / n : 0;
     });
+
     const noneKey = Object.keys(counts).find(k => k.toLowerCase().includes('ни одно'));
     if (noneKey) none = counts[noneKey] / n;
+
     return { perConcept, none };
   }
 
@@ -612,30 +648,24 @@ function calcExtraBlocks(rows, config, concepts, header) {
   const n = rows.length;
   const result = [];
 
-  function parseScaleValue(v) {
-    if (v === null || v === undefined || v === '') return null;
-    if (typeof v === 'number') return v;
-    const s = String(v).trim();
-    const m = s.match(/^([1-5])/);
-    return m ? Number(m[1]) : null;
-  }
-
   config.extra.forEach(q => {
     const idx = q.idx;
     const type = q.type;
 
     if (type === 'scale5') {
-      let counts = { '1':0,'2':0,'3':0,'4':0,'5':0 };
+      const counts = { '1':0,'2':0,'3':0,'4':0,'5':0 };
+
       rows.forEach(r => {
         const v = parseScaleValue(getCell(r, idx));
         if (v >= 1 && v <= 5) {
-          const k = String(v);
-          counts[k] += 1;
+          counts[String(v)] += 1;
         }
       });
+
       const dist = {};
       ['1','2','3','4','5'].forEach(k => dist[k] = counts[k] / n);
       dist.top2 = (counts['4'] + counts['5']) / n;
+
       result.push({
         kind: 'scale5',
         title: q.title,
@@ -644,16 +674,17 @@ function calcExtraBlocks(rows, config, concepts, header) {
       });
     } else if (type === 'single') {
       const counts = {};
+
       rows.forEach(r => {
         const v = String(getCell(r, idx) || '').trim();
         if (!v) return;
         counts[v] = (counts[v] || 0) + 1;
       });
-      const rowsOut = [];
-      Object.entries(counts).forEach(([cat, c]) => {
-        rowsOut.push({ cat, p: c / n });
-      });
-      rowsOut.sort((a, b) => b.p - a.p);
+
+      const rowsOut = Object.entries(counts)
+        .map(([cat, c]) => ({ cat, p: c / n }))
+        .sort((a, b) => b.p - a.p);
+
       result.push({
         kind: 'single',
         title: q.title,
@@ -670,14 +701,17 @@ function calcExtraBlocks(rows, config, concepts, header) {
 
 function calcAudience(rows, config, header) {
   const n = rows.length;
+
   function freq(idx) {
     if (idx == null || idx < 0) return [];
+
     const counts = {};
     rows.forEach(r => {
       const v = String(getCell(r, idx) || '').trim();
       if (!v) return;
       counts[v] = (counts[v] || 0) + 1;
     });
+
     return Object.entries(counts)
       .map(([label, c]) => [label, c / n])
       .sort((a, b) => b[1] - a[1]);
@@ -696,8 +730,8 @@ function calcAudience(rows, config, header) {
 // ---------- Z-ТЕСТ ДЛЯ ТОП-2 ----------
 
 function zTest(p1, p2, n1, n2) {
-  const p = (p1*n1 + p2*n2) / (n1+n2);
-  const se = Math.sqrt(p*(1-p)*(1/n1 + 1/n2));
+  const p = (p1 * n1 + p2 * n2) / (n1 + n2);
+  const se = Math.sqrt(p * (1 - p) * (1 / n1 + 1 / n2));
   if (!se) return 0;
   return (p1 - p2) / se;
 }
@@ -721,7 +755,7 @@ function calcSignificance(stdRes, extraRes, concepts, n) {
     });
   }
 
-  const stdTop2Keys = ['like','fitDish','fitBrand','visitBK','buyDish'];
+  const stdTop2Keys = ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish'];
   stdTop2Keys.forEach(k => {
     const arr = stdRes.top2[k];
     if (!arr || !arr.length) return;
@@ -731,11 +765,40 @@ function calcSignificance(stdRes, extraRes, concepts, n) {
   extraRes.forEach(er => {
     if (!er.where.includes('signif')) return;
     if (er.kind !== 'scale5') return;
-    const p = er.dist.top2;
-    signif.extra[er.title] = labelsFor([p]);
+    signif.extra[er.title] = er.dist.top2;
   });
 
   return signif;
+}
+
+// ---------- ФОРМАТИРОВАНИЕ EXCEL ----------
+
+function formatPercentCell(cell, decimals = 0) {
+  if (!cell) return;
+  if (typeof cell.v !== 'number') return;
+  cell.t = 'n';
+  cell.z = decimals > 0 ? `0.${'0'.repeat(decimals)}%` : '0%';
+}
+
+function applyPercentFormat(ws, decimals = 0) {
+  if (!ws || !ws['!ref']) return ws;
+
+  const range = XLSX.utils.decode_range(ws['!ref']);
+
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[addr];
+      if (!cell) continue;
+      if (typeof cell.v !== 'number') continue;
+
+      if (cell.v >= 0 && cell.v <= 1) {
+        formatPercentCell(cell, decimals);
+      }
+    }
+  }
+
+  return ws;
 }
 
 // ---------- ФОРМИРОВАНИЕ ЛИСТОВ ----------
@@ -746,7 +809,7 @@ function makeSummarySheet(stdRes, extraRes, concepts) {
   ws.push(['САММАРИ: ТОП-2 (сумма оценок 4 и 5)']);
   ws.push([]);
   ws.push(['Вариант названий', ...concepts.map(c => c.label)]);
-  ws.push(['База: n=' + stdRes.n + ' респондентов, все значения в долях (0–1)']);
+  ws.push([`База: n=${stdRes.n} респондентов, все значения в долях (0–1)`]);
   ws.push([]);
 
   ws.push(['ОСНОВНЫЕ ПОКАЗАТЕЛИ']);
@@ -760,25 +823,39 @@ function makeSummarySheet(stdRes, extraRes, concepts) {
 
   ws.push(['Прямое сравнение']);
   ws.push(['Показатель', ...concepts.map(c => c.label), 'Ни одно из них']);
-  ws.push(['Нравится больше всего', ...stdRes.direct.likeMost.perConcept, stdRes.direct.likeMost.none]);
-  ws.push(['Куплю в первую очередь', ...stdRes.direct.buyFirst.perConcept, stdRes.direct.buyFirst.none]);
+  ws.push([
+    'Нравится больше всего',
+    ...stdRes.direct.likeMost.perConcept,
+    stdRes.direct.likeMost.none
+  ]);
+  ws.push([
+    'Куплю в первую очередь',
+    ...stdRes.direct.buyFirst.perConcept,
+    stdRes.direct.buyFirst.none
+  ]);
   ws.push([]);
 
   ws.push(['ИМИДЖЕВЫЙ БЛОК']);
   ws.push(['Показатель', ...concepts.map(c => c.label)]);
-  Object.entries(stdRes.image).forEach(([name, vals]) => {
-    ws.push([name, ...vals]);
-  });
-  ws.push([]);
 
-  const extraSummary = extraRes.filter(er => er.where.includes('summary'));
-  if (extraSummary.length) {
-    ws.push(['ДОПОЛНИТЕЛЬНЫЕ ШКАЛЫ (Top‑2)']);
-    ws.push(['Показатель', 'Top‑2 (доля)']);
-    extraSummary.forEach(er => {
+  Object.entries(stdRes.image).forEach(([k, vals]) => {
+    ws.push([k, ...vals]);
+  });
+
+  const summaryExtras = extraRes.filter(x => x.where.includes('summary'));
+  if (summaryExtras.length) {
+    ws.push([]);
+    ws.push(['ДОПОЛНИТЕЛЬНЫЕ МЕТРИКИ']);
+
+    summaryExtras.forEach(er => {
       if (er.kind === 'scale5') {
         ws.push([er.title, er.dist.top2]);
+      } else {
+        ws.push([er.title]);
+        ws.push(['Категория', 'Доля']);
+        er.dist.forEach(row => ws.push([row.cat, row.p]));
       }
+      ws.push([]);
     });
   }
 
@@ -788,7 +865,7 @@ function makeSummarySheet(stdRes, extraRes, concepts) {
 function makeFullSheet(stdRes, extraRes, concepts) {
   const ws = [];
 
-  function block(title, distArr) {
+  function addScaleBlock(title, distArr) {
     ws.push([title]);
     ws.push(['Показатель', ...concepts.map(c => c.label)]);
     ws.push(['Top‑2 (4+5)', ...distArr.map(d => d.top2)]);
@@ -800,74 +877,51 @@ function makeFullSheet(stdRes, extraRes, concepts) {
     ws.push([]);
   }
 
-  block('Нравится название', stdRes.scales.like);
-  block('Подходит для блюда', stdRes.scales.fitDish);
-  block('Подходит для бренда', stdRes.scales.fitBrand);
-  block('Намерение посетить БК', stdRes.scales.visitBK);
-  block('Намерение купить', stdRes.scales.buyDish);
+  addScaleBlock('Нравится название', stdRes.scales.like);
+  addScaleBlock('Подходит для блюда', stdRes.scales.fitDish);
+  addScaleBlock('Подходит для бренда', stdRes.scales.fitBrand);
+  addScaleBlock('Намерение посетить БК', stdRes.scales.visitBK);
+  addScaleBlock('Намерение купить', stdRes.scales.buyDish);
 
-  const extraFull = extraRes.filter(er => er.where.includes('full'));
-  if (extraFull.length) {
-    ws.push(['ДОПОЛНИТЕЛЬНЫЕ ВОПРОСЫ']);
-    ws.push([]);
-    extraFull.forEach(er => {
+  ws.push(['ИМИДЖЕВЫЙ БЛОК']);
+  ws.push(['Показатель', ...concepts.map(c => c.label)]);
+  Object.entries(stdRes.image).forEach(([k, vals]) => {
+    ws.push([k, ...vals]);
+  });
+  ws.push([]);
+
+  ws.push(['КУПИЛИ БЫ В ПЕРВУЮ ОЧЕРЕДЬ']);
+  ws.push(['Название', 'нравится', 'куплю']);
+
+  concepts.forEach((c, i) => {
+    ws.push([
+      c.label,
+      stdRes.direct.likeMost.perConcept[i] || 0,
+      stdRes.direct.buyFirst.perConcept[i] || 0
+    ]);
+  });
+
+  ws.push(['Ни одно из них', stdRes.direct.likeMost.none || 0, stdRes.direct.buyFirst.none || 0]);
+  ws.push([]);
+
+  const fullExtras = extraRes.filter(x => x.where.includes('full'));
+  if (fullExtras.length) {
+    ws.push(['ДОПОЛНИТЕЛЬНЫЕ МЕТРИКИ']);
+    fullExtras.forEach(er => {
       if (er.kind === 'scale5') {
         ws.push([er.title]);
-        ws.push(['Top‑2', er.dist.top2]);
+        ws.push(['Показатель', 'Доля']);
+        ws.push(['Top‑2 (4+5)', er.dist.top2]);
         ws.push(['1', er.dist['1']]);
         ws.push(['2', er.dist['2']]);
         ws.push(['3', er.dist['3']]);
         ws.push(['4', er.dist['4']]);
         ws.push(['5', er.dist['5']]);
-        ws.push([]);
-      } else if (er.kind === 'single') {
+      } else {
         ws.push([er.title]);
         ws.push(['Категория', 'Доля']);
-        er.dist.forEach(row => {
-          ws.push([row.cat, row.p]);
-        });
-        ws.push([]);
+        er.dist.forEach(row => ws.push([row.cat, row.p]));
       }
-    });
-  }
-
-  return XLSX.utils.aoa_to_sheet(ws);
-}
-
-function makeSignifSheet(signif, concepts) {
-  const ws = [];
-
-  ws.push(['ЗНАЧИМОСТИ (z‑тест, альфа=0.05, отмечены более сильные концепты)']);
-  ws.push([]);
-
-  const stdKeys = [
-    { key: 'like', label: 'Нравится название' },
-    { key: 'fitDish', label: 'Подходит для блюда' },
-    { key: 'fitBrand', label: 'Подходит для бренда' },
-    { key: 'visitBK', label: 'Намерение посетить БК' },
-    { key: 'buyDish', label: 'Намерение купить' }
-  ];
-
-  stdKeys.forEach(k => {
-    const arr = signif.top2[k.key];
-    if (!arr) return;
-    ws.push([k.label]);
-    ws.push(['Концепция', 'Сильнее (значимо выше Top‑2, коды концепций)']);
-    arr.forEach((greater, i) => {
-      ws.push([concepts[i].label + ` (${concepts[i].code})`, greater.join(', ')]);
-    });
-    ws.push([]);
-  });
-
-  const extraEntries = Object.entries(signif.extra);
-  if (extraEntries.length) {
-    ws.push(['ДОПОЛНИТЕЛЬНЫЕ ШКАЛЫ']);
-    ws.push([]);
-    extraEntries.forEach(([title, arr]) => {
-      ws.push([title, 'Сильнее (значимо выше Top‑2, коды концепций)']);
-      arr.forEach((greater, i) => {
-        ws.push([`Концепция ${concepts[i]?.code || ''}`, greater.join(', ')]);
-      });
       ws.push([]);
     });
   }
@@ -875,27 +929,63 @@ function makeSignifSheet(signif, concepts) {
   return XLSX.utils.aoa_to_sheet(ws);
 }
 
-function makeAudienceSheet(aud) {
+function makeSignifSheet(signifRes, concepts) {
   const ws = [];
-  ws.push(['АУДИТОРИЯ']);
-  ws.push(['База: n=' + aud.n + ' респондентов, значения в долях (0–1)']);
+
+  ws.push(['ЗНАЧИМОСТИ (z‑тест, альфа=0.05, отмечены более сильные концепты)']);
   ws.push([]);
 
-  function block(title, rows) {
-    if (!rows || !rows.length) return;
+  const titles = {
+    like: 'Нравится название',
+    fitDish: 'Подходит для блюда',
+    fitBrand: 'Подходит для бренда',
+    visitBK: 'Намерение посетить БК',
+    buyDish: 'Намерение купить'
+  };
+
+  Object.entries(titles).forEach(([key, title]) => {
+    if (!signifRes.top2[key]) return;
+
+    ws.push([title]);
+    ws.push(['Концепция', 'Сильнее (значимо выше Top‑2, коды концепций)']);
+
+    concepts.forEach((c, i) => {
+      const stronger = (signifRes.top2[key][i] || []).join(', ');
+      ws.push([`${c.label} (${c.code})`, stronger]);
+    });
+
+    ws.push([]);
+  });
+
+  if (Object.keys(signifRes.extra).length) {
+    ws.push(['ДОП. МЕТРИКИ']);
+    Object.entries(signifRes.extra).forEach(([title, val]) => {
+      ws.push([title, val]);
+    });
+  }
+
+  return XLSX.utils.aoa_to_sheet(ws);
+}
+
+function makeAudienceSheet(audienceRes) {
+  const ws = [];
+
+  function addFreq(title, rows) {
     ws.push([title]);
     ws.push(['Категория', 'Доля']);
-    rows.forEach(([label, p]) => {
-      ws.push([label, p]);
-    });
+    rows.forEach(r => ws.push(r));
     ws.push([]);
   }
 
-  block('Частота взятия новинок (горячие напитки)', aud.freqNew);
-  block('Частота покупки капучино', aud.freqProd);
-  block('Пол', aud.sex);
-  block('Возраст', aud.age);
-  block('Частота посещения Бургер Кинг', aud.freqBK);
+  ws.push(['АУДИТОРИЯ']);
+  ws.push([`База: n=${audienceRes.n} респондентов, значения в долях (0–1)`]);
+  ws.push([]);
+
+  addFreq('Частота взятия новинок (горячие напитки)', audienceRes.freqNew);
+  addFreq('Частота покупки капучино', audienceRes.freqProd);
+  addFreq('Пол', audienceRes.sex);
+  addFreq('Возраст', audienceRes.age);
+  addFreq('Частота посещения Бургер Кинг', audienceRes.freqBK);
 
   return XLSX.utils.aoa_to_sheet(ws);
 }
