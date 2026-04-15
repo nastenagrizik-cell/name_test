@@ -41,7 +41,7 @@ if (typeof XLSX !== 'object') {
 
       const sheetName = wb.SheetNames[wb.SheetNames.length - 1];
       const sheet = wb.Sheets[sheetName];
-      const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 
       const { header, rows } = splitHeaderRows(data);
       parsed = { header, rows };
@@ -141,8 +141,19 @@ function status(text, ok = false, isError = false) {
 // ---------- ПАРСИНГ БАЗЫ ----------
 
 function splitHeaderRows(data) {
-  const header = (data[0] || []).map(v => String(v || '').trim());
-  const rows = data.slice(1).filter(r => r && r.some(v => v !== null && v !== ''));
+  // 1-я строка: технические имена переменных
+  // 2-я строка: полные формулировки вопросов
+  // 3-я строка и далее: данные
+  if (!data || data.length < 2) {
+    return { header: [], rows: [] };
+  }
+
+  const varNames = (data[0] || []).map(v => String(v || '').trim());
+  const questionTexts = (data[1] || []).map(v => String(v || '').trim());
+
+  const header = questionTexts.map((txt, i) => txt || varNames[i] || `col_${i}`);
+  const rows = data.slice(2).filter(r => r && r.some(v => v !== null && v !== ''));
+
   return { header, rows };
 }
 
@@ -477,11 +488,19 @@ function getCell(row, idx) {
 function calcStandardBlocks(rows, config, concepts, header) {
   const n = rows.length;
 
+  function parseScaleValue(v) {
+    if (v === null || v === undefined || v === '') return null;
+    if (typeof v === 'number') return v;
+    const s = String(v).trim();
+    const m = s.match(/^([1-5])/);
+    return m ? Number(m[1]) : null;
+  }
+
   function top2ByCols(colIndexes) {
     const res = Array(concepts.length).fill(0);
     rows.forEach(r => {
       colIndexes.forEach((col, i) => {
-        const v = Number(getCell(r, col));
+        const v = parseScaleValue(getCell(r, col));
         if (v === 4 || v === 5) res[i] += 1;
       });
     });
@@ -492,7 +511,7 @@ function calcStandardBlocks(rows, config, concepts, header) {
     const res = colIndexes.map(() => ({ '1':0,'2':0,'3':0,'4':0,'5':0 }));
     rows.forEach(r => {
       colIndexes.forEach((col, i) => {
-        const v = Number(getCell(r, col));
+        const v = parseScaleValue(getCell(r, col));
         if (v >= 1 && v <= 5) {
           const k = String(v);
           res[i][k] += 1;
@@ -526,7 +545,7 @@ function calcStandardBlocks(rows, config, concepts, header) {
 
     rows.forEach(r => {
       config.std.image.forEach(({ key, idx }) => {
-        const val = getCell(r, idx);
+        const val = String(getCell(r, idx) || '').trim();
         if (!val) return;
         const h = header[idx];
         const foundIndex = concepts.findIndex(c => h.endsWith(c.label));
@@ -543,7 +562,6 @@ function calcStandardBlocks(rows, config, concepts, header) {
   }
 
   function directSingle(colIndexes) {
-    const n = rows.length;
     const counts = {};
     colIndexes.forEach(idx => {
       rows.forEach(r => {
@@ -594,6 +612,14 @@ function calcExtraBlocks(rows, config, concepts, header) {
   const n = rows.length;
   const result = [];
 
+  function parseScaleValue(v) {
+    if (v === null || v === undefined || v === '') return null;
+    if (typeof v === 'number') return v;
+    const s = String(v).trim();
+    const m = s.match(/^([1-5])/);
+    return m ? Number(m[1]) : null;
+  }
+
   config.extra.forEach(q => {
     const idx = q.idx;
     const type = q.type;
@@ -601,7 +627,7 @@ function calcExtraBlocks(rows, config, concepts, header) {
     if (type === 'scale5') {
       let counts = { '1':0,'2':0,'3':0,'4':0,'5':0 };
       rows.forEach(r => {
-        const v = Number(getCell(r, idx));
+        const v = parseScaleValue(getCell(r, idx));
         if (v >= 1 && v <= 5) {
           const k = String(v);
           counts[k] += 1;
