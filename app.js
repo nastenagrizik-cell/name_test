@@ -118,8 +118,6 @@ if (typeof XLSX !== 'object') {
   });
 }
 
-// ---------- УТИЛИТЫ СОСТОЯНИЯ / СТАТУС ----------
-
 function resetState() {
   parsed = null;
   autoMapping = null;
@@ -139,8 +137,6 @@ function status(text, ok = false, isError = false) {
   statusEl.classList.toggle('error', isError);
 }
 
-// ---------- ПАРСИНГ БАЗЫ ----------
-
 function splitHeaderRows(data) {
   if (!data || data.length < 2) {
     return { header: [], rows: [] };
@@ -148,14 +144,11 @@ function splitHeaderRows(data) {
 
   const varNames = (data[0] || []).map(v => String(v || '').trim());
   const questionTexts = (data[1] || []).map(v => String(v || '').trim());
-
   const header = questionTexts.map((txt, i) => txt || varNames[i] || `col_${i}`);
   const rows = data.slice(2).filter(r => r && r.some(v => v !== null && v !== ''));
 
   return { header, rows };
 }
-
-// ---------- АВТОПОИСК ВОПРОСОВ ----------
 
 function autoDetectMapping(header) {
   const std = {
@@ -181,8 +174,7 @@ function autoDetectMapping(header) {
       std.like.push(idx);
     }
 
-    if (h.includes('Насколько каждое из этих названий') &&
-        h.includes('подходит или не подходит для этого')) {
+    if (h.includes('Насколько каждое из этих названий') && h.includes('подходит или не подходит для этого')) {
       std.fitDish.push(idx);
     }
 
@@ -271,10 +263,11 @@ function autoDetectMapping(header) {
     if (!h) return null;
 
     const lower = h.toLowerCase();
-    const looksClosed = lower.includes('насколько') ||
-                        lower.includes('оцените') ||
-                        lower.includes('выберите') ||
-                        lower.includes('какое из перечисленных');
+    const looksClosed =
+      lower.includes('насколько') ||
+      lower.includes('оцените') ||
+      lower.includes('выберите') ||
+      lower.includes('какое из перечисленных');
 
     if (!looksClosed) return null;
     return { idx, header: h };
@@ -282,8 +275,6 @@ function autoDetectMapping(header) {
 
   return { std, extraCandidates };
 }
-
-// ---------- UI ----------
 
 function renderStandardMappingUI(mapping, header) {
   const groups = [
@@ -398,8 +389,6 @@ function renderExtraQuestionsUI(mapping) {
   });
 }
 
-// ---------- КОНФИГ ----------
-
 function collectUserConfig(mapping) {
   const stdSelected = {
     like: [],
@@ -458,8 +447,6 @@ function collectUserConfig(mapping) {
   return { std: stdSelected, extra };
 }
 
-// ---------- КОНЦЕПТЫ ----------
-
 function inferConcepts(header, config) {
   const sourceCols =
     (config.std.like && config.std.like.length ? config.std.like : null) ||
@@ -486,8 +473,6 @@ function inferConcepts(header, config) {
   }));
 }
 
-// ---------- ВСПОМОГАТЕЛЬНОЕ ----------
-
 function getCell(row, idx) {
   if (idx == null || idx < 0) return null;
   return row[idx];
@@ -513,12 +498,6 @@ function findConceptIndexByHeader(headerText, concepts) {
   return -1;
 }
 
-function normalizeText(s) {
-  return String(s || '').trim().toLowerCase();
-}
-
-// ---------- РАСЧЁТЫ ----------
-
 function calcStandardBlocks(rows, config, concepts, header) {
   const n = rows.length;
 
@@ -535,7 +514,7 @@ function calcStandardBlocks(rows, config, concepts, header) {
   }
 
   function dist5(colIndexes) {
-    const res = Array.from({ length: concepts.length }, () => ({ '1':0,'2':0,'3':0,'4':0,'5':0 }));
+    const res = Array.from({ length: concepts.length }, () => ({ '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 }));
     rows.forEach(r => {
       colIndexes.forEach((col, i) => {
         if (i >= concepts.length) return;
@@ -545,7 +524,7 @@ function calcStandardBlocks(rows, config, concepts, header) {
     });
     return res.map(d => {
       const o = {};
-      ['1','2','3','4','5'].forEach(k => o[k] = d[k] / n);
+      ['1', '2', '3', '4', '5'].forEach(k => o[k] = d[k] / n);
       o.top2 = (d['4'] + d['5']) / n;
       return o;
     });
@@ -643,14 +622,14 @@ function calcExtraBlocks(rows, config) {
     const type = q.type;
 
     if (type === 'scale5') {
-      const counts = { '1':0,'2':0,'3':0,'4':0,'5':0 };
+      const counts = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
       rows.forEach(r => {
         const v = parseScaleValue(getCell(r, idx));
         if (v >= 1 && v <= 5) counts[String(v)] += 1;
       });
 
       const dist = {};
-      ['1','2','3','4','5'].forEach(k => dist[k] = counts[k] / n);
+      ['1', '2', '3', '4', '5'].forEach(k => dist[k] = counts[k] / n);
       dist.top2 = (counts['4'] + counts['5']) / n;
 
       result.push({
@@ -711,8 +690,6 @@ function calcAudience(rows, config) {
   };
 }
 
-// ---------- ЗНАЧИМОСТИ ----------
-
 function zTest(p1, p2, n1, n2) {
   const p = (p1 * n1 + p2 * n2) / (n1 + n2);
   const se = Math.sqrt(p * (1 - p) * (1 / n1 + 1 / n2));
@@ -741,18 +718,16 @@ function calcSignificance(stdRes, extraRes, concepts, n) {
     });
   }
 
-  const stdTop2Keys = ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish'];
-  stdTop2Keys.forEach(k => {
+  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish'].forEach(k => {
     const arr = stdRes.top2[k];
     if (!arr || !arr.length) return;
     signif.top2[k] = labelsFor(arr);
   });
 
-  const stdScaleKeys = ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish'];
-  stdScaleKeys.forEach(k => {
+  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish'].forEach(k => {
     const distArr = stdRes.scales[k];
     signif.scales[k] = {};
-    ['top2','1','2','3','4','5'].forEach(level => {
+    ['top2', '1', '2', '3', '4', '5'].forEach(level => {
       const arr = distArr.map(d => d[level]);
       signif.scales[k][level] = labelsFor(arr);
     });
@@ -773,46 +748,20 @@ function calcSignificance(stdRes, extraRes, concepts, n) {
   return signif;
 }
 
-// ---------- EXCEL FORMAT ----------
-
-function formatPercentCell(cell, decimals = 0) {
-  if (!cell) return;
-  if (typeof cell.v !== 'number') return;
-  cell.t = 'n';
-  cell.z = decimals > 0 ? `0.${'0'.repeat(decimals)}%` : '0%';
-}
-
-function applyPercentFormat(ws, decimals = 0) {
-  if (!ws || !ws['!ref']) return ws;
-  const range = XLSX.utils.decode_range(ws['!ref']);
-
-  for (let r = range.s.r; r <= range.e.r; r++) {
-    for (let c = range.s.c; c <= range.e.c; c++) {
-      const addr = XLSX.utils.encode_cell({ r, c });
-      const cell = ws[addr];
-      if (!cell) continue;
-      if (typeof cell.v !== 'number') continue;
-      if (cell.v >= 0 && cell.v <= 1) formatPercentCell(cell, decimals);
-    }
-  }
-
-  return ws;
-}
-
 function cellRef(r, c) {
   return XLSX.utils.encode_cell({ r, c });
+}
+
+function setCell(ws, r, c, value, style = null) {
+  const t = typeof value === 'number' ? 'n' : 's';
+  ws[cellRef(r, c)] = { t, v: value };
+  if (style) ws[cellRef(r, c)].s = JSON.parse(JSON.stringify(style));
+  return ws[cellRef(r, c)];
 }
 
 function ensureCell(ws, r, c, value = '') {
   const ref = cellRef(r, c);
   if (!ws[ref]) ws[ref] = { t: typeof value === 'number' ? 'n' : 's', v: value };
-  return ws[ref];
-}
-
-function setCell(ws, r, c, value, style = null) {
-  const ref = cellRef(r, c);
-  ws[ref] = { t: typeof value === 'number' ? 'n' : 's', v: value };
-  if (style) ws[ref].s = style;
   return ws[ref];
 }
 
@@ -822,6 +771,13 @@ function mergeRange(ws, sRow, sCol, eRow, eCol) {
     s: { r: sRow, c: sCol },
     e: { r: eRow, c: eCol }
   });
+}
+
+function makeCols(labelWidth, conceptCount, conceptWidth = 15, spacerCols = []) {
+  const cols = [{ wch: labelWidth }];
+  for (let i = 0; i < conceptCount; i++) cols.push({ wch: conceptWidth });
+  spacerCols.forEach(w => cols.push({ wch: w }));
+  return cols;
 }
 
 function borderAll() {
@@ -840,25 +796,25 @@ function hexFill(rgb) {
 const STYLES = {
   title: {
     font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 14 },
-    fill: hexFill('1F4E78'),
+    fill: hexFill('244C73'),
     alignment: { horizontal: 'left', vertical: 'center' },
     border: borderAll()
   },
   section: {
     font: { bold: true, color: { rgb: 'FFFFFF' } },
-    fill: hexFill('1F4E78'),
+    fill: hexFill('244C73'),
     alignment: { horizontal: 'left', vertical: 'center' },
     border: borderAll()
   },
   blockTitle: {
     font: { bold: true, color: { rgb: 'FFFFFF' } },
-    fill: hexFill('4F81BD'),
+    fill: hexFill('5E86B4'),
     alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
     border: borderAll()
   },
   headerCenter: {
     font: { bold: true, color: { rgb: 'FFFFFF' } },
-    fill: hexFill('1F4E78'),
+    fill: hexFill('244C73'),
     alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
     border: borderAll()
   },
@@ -869,11 +825,6 @@ const STYLES = {
     border: borderAll()
   },
   label: {
-    alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
-    border: borderAll()
-  },
-  labelBold: {
-    font: { bold: true },
     alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
     border: borderAll()
   },
@@ -904,7 +855,7 @@ const STYLES = {
     border: borderAll()
   },
   legendAccent: {
-    font: { bold: true, color: { rgb: '7F6000' } },
+    font: { bold: true, color: { rgb: 'C55A11' } },
     alignment: { horizontal: 'center', vertical: 'center' },
     fill: hexFill('FFF2CC'),
     border: borderAll()
@@ -913,26 +864,33 @@ const STYLES = {
     alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
     border: borderAll()
   },
-  stringAccent: {
-    font: { bold: true, color: { rgb: 'C55A11' } },
-    alignment: { horizontal: 'center', vertical: 'center' },
-    border: borderAll()
-  },
-  textAccent: {
+  lettersOnly: {
     font: { bold: true, color: { rgb: 'C55A11' } },
     alignment: { horizontal: 'center', vertical: 'center' },
     border: borderAll()
   }
 };
 
-function isStrong2Plus(arr, index) {
-  return Array.isArray(arr) && Array.isArray(arr[index]) && arr[index].length >= 2;
+function setPercent(ws, r, c, value, style) {
+  const cell = setCell(ws, r, c, Number(value || 0), style);
+  cell.z = '0%';
+  return cell;
 }
 
-function withLettersText(value, letters) {
-  const pct = Math.round((value || 0) * 100) + '%';
-  if (!letters || !letters.length) return pct;
-  return pct + ' ' + letters.join(',');
+function applyPercentFormat(ws) {
+  if (!ws || !ws['!ref']) return ws;
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const ref = cellRef(r, c);
+      const cell = ws[ref];
+      if (!cell) continue;
+      if (cell.t === 'n' && typeof cell.v === 'number' && cell.v >= 0 && cell.v <= 1) {
+        if (!cell.z) cell.z = '0%';
+      }
+    }
+  }
+  return ws;
 }
 
 function applySheetRangeRef(ws, endRow, endCol) {
@@ -942,9 +900,19 @@ function applySheetRangeRef(ws, endRow, endCol) {
   });
 }
 
-function makeLegendRow(ws, row, codeText, descText, codeStyle) {
-  setCell(ws, row, 1, codeText, codeStyle);
-  setCell(ws, row, 2, descText, STYLES.legendText);
+function isStrong2Plus(arr, index) {
+  return Array.isArray(arr) && Array.isArray(arr[index]) && arr[index].length >= 2;
+}
+
+function blockTitleForKey(key) {
+  const map = {
+    like: 'НАСКОЛЬКО НРАВИТСЯ НАЗВАНИЕ',
+    fitDish: 'НАСКОЛЬКО ПОДХОДИТ ДЛЯ ЭТОГО БЛЮДА',
+    fitBrand: 'НАСКОЛЬКО ПОДХОДИТ ДЛЯ БРЕНДА БУРГЕР КИНГ В ЦЕЛОМ',
+    visitBK: 'НАМЕРЕНИЕ ПОСЕТИТЬ БУРГЕР КИНГ, ЕСЛИ ПОЯВИТСЯ В МЕНЮ',
+    buyDish: 'НАМЕРЕНИЕ КУПИТЬ ПО ПРИЕМЛЕМОЙ ЦЕНЕ'
+  };
+  return map[key];
 }
 
 function scaleLabelsForBlock(key) {
@@ -988,17 +956,6 @@ function scaleLabelsForBlock(key) {
   return map[key];
 }
 
-function blockTitleForKey(key) {
-  const map = {
-    like: 'НАСКОЛЬКО НРАВИТСЯ НАЗВАНИЕ',
-    fitDish: 'НАСКОЛЬКО ПОДХОДИТ ДЛЯ ЭТОГО БЛЮДА',
-    fitBrand: 'НАСКОЛЬКО ПОДХОДИТ ДЛЯ БРЕНДА БУРГЕР КИНГ В ЦЕЛОМ',
-    visitBK: 'НАМЕРЕНИЕ ПОСЕТИТЬ БУРГЕР КИНГ, ЕСЛИ ПОЯВИТСЯ В МЕНЮ',
-    buyDish: 'НАМЕРЕНИЕ КУПИТЬ ПО ПРИЕМЛЕМОЙ ЦЕНЕ'
-  };
-  return map[key];
-}
-
 function blockValueRows(stdRes, key) {
   const distArr = stdRes.scales[key];
   return [
@@ -1011,188 +968,133 @@ function blockValueRows(stdRes, key) {
   ];
 }
 
-// ---------- SUMMARY ----------
-
 function makeSummarySheetStyled(stdRes, extraRes, concepts, signifRes) {
   const ws = {};
+  const conceptCount = concepts.length;
+  const lastCol = conceptCount;
 
-  ws['!cols'] = [
-    { wch: 42 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 15 }
+  ws['!cols'] = [{ wch: 42 }, ...Array.from({ length: conceptCount }, () => ({ wch: 15 }))];
+
+  let row = 0;
+
+  setCell(ws, row, 0, 'САММАРИ: ТОП-2 (сумма оценок 4 и 5)', STYLES.title);
+  mergeRange(ws, row, 0, row, lastCol);
+  for (let c = 1; c <= lastCol; c++) ensureCell(ws, row, c).s = STYLES.title;
+  row++;
+
+  setCell(ws, row, 0, 'Тестируемые варианты названий', STYLES.headerCenter);
+  concepts.forEach((cpt, i) => setCell(ws, row, i + 1, cpt.label, STYLES.headerCenter));
+  row++;
+
+  setCell(ws, row, 0, `База: n=${stdRes.n} респондентов | Все значения в %`, STYLES.base);
+  mergeRange(ws, row, 0, row, lastCol);
+  for (let c = 1; c <= lastCol; c++) ensureCell(ws, row, c).s = STYLES.base;
+  row++;
+
+  setCell(ws, row, 1, 'xx', STYLES.legendGreen);
+  setCell(ws, row, 2, 'значимо выше 2 и более других названий', STYLES.legendText);
+  if (lastCol >= 2) mergeRange(ws, row, 2, row, lastCol);
+  row++;
+
+  setCell(ws, row, 0, 'ОСНОВНЫЕ ПОКАЗАТЕЛИ', STYLES.section);
+  mergeRange(ws, row, 0, row, lastCol);
+  for (let c = 1; c <= lastCol; c++) ensureCell(ws, row, c).s = STYLES.section;
+  row++;
+
+  setCell(ws, row, 0, 'Показатель', STYLES.headerCenter);
+  concepts.forEach((cpt, i) => setCell(ws, row, i + 1, cpt.label, STYLES.headerCenter));
+  row++;
+
+  const summaryRows = [
+    ['Нравится название', stdRes.top2.like, 'like'],
+    ['Подходит для блюда', stdRes.top2.fitDish, 'fitDish'],
+    ['Подходит для бренда', stdRes.top2.fitBrand, 'fitBrand'],
+    ['Намерение посетить БК', stdRes.top2.visitBK, 'visitBK'],
+    ['Намерение купить', stdRes.top2.buyDish, 'buyDish']
   ];
 
-  const rows = [];
-  rows.push(['САММАРИ: ТОП-2 (сумма оценок 4 и 5)']);
-  rows.push(['Тестируемые варианты названий', ...concepts.map(c => c.label)]);
-  rows.push([`База: n=${stdRes.n} респондентов | Все значения в %`]);
-  rows.push(['', 'xx', 'значимо выше 2 и более других названий']);
-  rows.push(['ОСНОВНЫЕ ПОКАЗАТЕЛИ']);
-  rows.push(['Показатель', ...concepts.map(c => c.label)]);
-  rows.push(['Нравится название', ...stdRes.top2.like]);
-  rows.push(['Подходит для блюда', ...stdRes.top2.fitDish]);
-  rows.push(['Подходит для бренда', ...stdRes.top2.fitBrand]);
-  rows.push(['Намерение посетить БК', ...stdRes.top2.visitBK]);
-  rows.push(['Намерение купить', ...stdRes.top2.buyDish]);
-  rows.push([]);
-  rows.push(['Прямое сравнение']);
-  rows.push(['Нравится больше всего', ...stdRes.direct.likeMost.perConcept]);
-  rows.push(['Куплю в первую очередь', ...stdRes.direct.buyFirst.perConcept]);
-  rows.push([]);
-  rows.push(['ИМИДЖЕВЫЙ БЛОК']);
-  rows.push(['Показатель', ...concepts.map(c => c.label)]);
-
-  const imageKeys = Object.keys(stdRes.image);
-  imageKeys.forEach(k => rows.push([k, ...stdRes.image[k]]));
-
-  XLSX.utils.sheet_add_aoa(ws, rows, { origin: 'A1' });
-  applyPercentFormat(ws, 0);
-
-  mergeRange(ws, 0, 0, 0, 4);
-  mergeRange(ws, 2, 0, 2, 4);
-  mergeRange(ws, 4, 0, 4, 4);
-  mergeRange(ws, 12, 0, 12, 4);
-  mergeRange(ws, 16, 0, 16, 4);
-  mergeRange(ws, 3, 2, 3, 4);
-
-  for (let c = 0; c <= 4; c++) {
-    ensureCell(ws, 0, c);
-    ws[cellRef(0, c)].s = STYLES.title;
-  }
-
-  setCell(ws, 1, 0, 'Тестируемые варианты названий', STYLES.headerCenter);
-  for (let i = 0; i < concepts.length; i++) {
-    setCell(ws, 1, i + 1, concepts[i].label, STYLES.headerCenter);
-  }
-
-  for (let c = 0; c <= 4; c++) {
-    ensureCell(ws, 2, c);
-    ws[cellRef(2, c)].s = STYLES.base;
-  }
-
-  setCell(ws, 3, 1, 'xx', STYLES.legendGreen);
-  setCell(ws, 3, 2, 'значимо выше 2 и более других названий', STYLES.legendText);
-
-  for (let c = 0; c <= 4; c++) {
-    ensureCell(ws, 4, c);
-    ws[cellRef(4, c)].s = STYLES.section;
-  }
-
-  setCell(ws, 5, 0, 'Показатель', STYLES.headerCenter);
-  for (let i = 0; i < concepts.length; i++) {
-    setCell(ws, 5, i + 1, concepts[i].label, STYLES.headerCenter);
-  }
-
-  const top2Map = [
-    ['like', 6],
-    ['fitDish', 7],
-    ['fitBrand', 8],
-    ['visitBK', 9],
-    ['buyDish', 10]
-  ];
-
-  top2Map.forEach(([key, rowIndex]) => {
-    ws[cellRef(rowIndex, 0)].s = STYLES.label;
-    for (let i = 0; i < concepts.length; i++) {
-      const cell = ws[cellRef(rowIndex, i + 1)];
-      cell.s = isStrong2Plus(signifRes.top2[key], i) ? STYLES.percentGreen : STYLES.percent;
-    }
+  summaryRows.forEach(([label, vals, key]) => {
+    setCell(ws, row, 0, label, STYLES.label);
+    vals.forEach((v, i) => {
+      setPercent(ws, row, i + 1, v, isStrong2Plus(signifRes.top2[key], i) ? STYLES.percentGreen : STYLES.percent);
+    });
+    row++;
   });
 
-  for (let c = 0; c <= 4; c++) {
-    ensureCell(ws, 12, c);
-    ws[cellRef(12, c)].s = STYLES.section;
-  }
+  row++;
+  setCell(ws, row, 0, 'Прямое сравнение', STYLES.section);
+  mergeRange(ws, row, 0, row, lastCol);
+  for (let c = 1; c <= lastCol; c++) ensureCell(ws, row, c).s = STYLES.section;
+  row++;
 
-  const directRows = [
-    { row: 13, key: 'likeMost' },
-    { row: 14, key: 'buyFirst' }
-  ];
-
-  directRows.forEach(({ row, key }) => {
-    ws[cellRef(row, 0)].s = STYLES.label;
-    const marks = signifRes.directMax[key];
-    for (let i = 0; i < concepts.length; i++) {
-      const cell = ws[cellRef(row, i + 1)];
-      cell.s = marks[i] ? STYLES.percentGreen : STYLES.percent;
-    }
+  [
+    ['Нравится больше всего', stdRes.direct.likeMost.perConcept, signifRes.directMax.likeMost],
+    ['Куплю в первую очередь', stdRes.direct.buyFirst.perConcept, signifRes.directMax.buyFirst]
+  ].forEach(([label, vals, marks]) => {
+    setCell(ws, row, 0, label, STYLES.label);
+    vals.forEach((v, i) => {
+      setPercent(ws, row, i + 1, v, marks[i] ? STYLES.percentGreen : STYLES.percent);
+    });
+    row++;
   });
 
-  for (let c = 0; c <= 4; c++) {
-    ensureCell(ws, 16, c);
-    ws[cellRef(16, c)].s = STYLES.section;
-  }
+  row++;
+  setCell(ws, row, 0, 'ИМИДЖЕВЫЙ БЛОК', STYLES.section);
+  mergeRange(ws, row, 0, row, lastCol);
+  for (let c = 1; c <= lastCol; c++) ensureCell(ws, row, c).s = STYLES.section;
+  row++;
 
-  setCell(ws, 17, 0, 'Показатель', STYLES.headerCenter);
-  for (let i = 0; i < concepts.length; i++) {
-    setCell(ws, 17, i + 1, concepts[i].label, STYLES.headerCenter);
-  }
+  setCell(ws, row, 0, 'Показатель', STYLES.headerCenter);
+  concepts.forEach((cpt, i) => setCell(ws, row, i + 1, cpt.label, STYLES.headerCenter));
+  row++;
 
-  imageKeys.forEach((key, idx) => {
-    const row = 18 + idx;
-    ws[cellRef(row, 0)].s = STYLES.label;
-    for (let i = 0; i < concepts.length; i++) {
-      const cell = ws[cellRef(row, i + 1)];
-      cell.s = isStrong2Plus(signifRes.image[key], i) ? STYLES.percentGreen : STYLES.percent;
-    }
+  Object.entries(stdRes.image).forEach(([label, vals]) => {
+    setCell(ws, row, 0, label, STYLES.label);
+    vals.forEach((v, i) => {
+      setPercent(ws, row, i + 1, v, isStrong2Plus(signifRes.image[label], i) ? STYLES.percentGreen : STYLES.percent);
+    });
+    row++;
   });
 
-  ws['!rows'] = [];
-  ws['!rows'][0] = { hpt: 22 };
-  ws['!rows'][1] = { hpt: 32 };
-
-  applySheetRangeRef(ws, 18 + imageKeys.length - 1, 4);
+  applySheetRangeRef(ws, row, lastCol);
+  applyPercentFormat(ws);
   return ws;
 }
 
-// ---------- FULL TABLES ----------
-
 function makeFullSheetStyled(stdRes, extraRes, concepts) {
   const ws = {};
-  ws['!cols'] = [
-    { wch: 46 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 15 }
-  ];
+  const conceptCount = concepts.length;
+  const lastCol = conceptCount;
+
+  ws['!cols'] = [{ wch: 46 }, ...Array.from({ length: conceptCount }, () => ({ wch: 15 }))];
 
   let row = 0;
 
   setCell(ws, row, 0, 'ПОЛНЫЕ ДАННЫЕ ПО ВСЕМ ВОПРОСАМ', STYLES.title);
-  mergeRange(ws, row, 0, row, 4);
-  for (let c = 1; c <= 4; c++) ensureCell(ws, row, c).s = STYLES.title;
+  mergeRange(ws, row, 0, row, lastCol);
+  for (let c = 1; c <= lastCol; c++) ensureCell(ws, row, c).s = STYLES.title;
   row++;
 
   setCell(ws, row, 0, 'Тестируемые варианты названий', STYLES.headerCenter);
-  for (let i = 0; i < concepts.length; i++) {
-    setCell(ws, row, i + 1, concepts[i].label, STYLES.headerCenter);
-  }
+  concepts.forEach((cpt, i) => setCell(ws, row, i + 1, cpt.label, STYLES.headerCenter));
   row++;
 
   setCell(ws, row, 0, `База: n=${stdRes.n} респондентов | Все значения в %`, STYLES.base);
-  mergeRange(ws, row, 0, row, 4);
-  for (let c = 1; c <= 4; c++) ensureCell(ws, row, c).s = STYLES.base;
+  mergeRange(ws, row, 0, row, lastCol);
+  for (let c = 1; c <= lastCol; c++) ensureCell(ws, row, c).s = STYLES.base;
   row++;
 
-  const blockKeys = ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish'];
-
-  blockKeys.forEach(key => {
+  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish'].forEach(key => {
     setCell(ws, row, 0, blockTitleForKey(key), STYLES.blockTitle);
-    mergeRange(ws, row, 0, row, 4);
-    for (let c = 1; c <= 4; c++) ensureCell(ws, row, c).s = STYLES.blockTitle;
+    mergeRange(ws, row, 0, row, lastCol);
+    for (let c = 1; c <= lastCol; c++) ensureCell(ws, row, c).s = STYLES.blockTitle;
     row++;
 
-    const valueRows = blockValueRows(stdRes, key);
-    valueRows.forEach(([label, vals, level]) => {
+    blockValueRows(stdRes, key).forEach(([label, vals, level]) => {
       setCell(ws, row, 0, label, level === 'top2' ? STYLES.top2Label : STYLES.label);
-      for (let i = 0; i < concepts.length; i++) {
-        setCell(ws, row, i + 1, vals[i], level === 'top2' ? STYLES.top2Row : STYLES.percent);
-      }
+      vals.forEach((v, i) => {
+        setPercent(ws, row, i + 1, v, level === 'top2' ? STYLES.top2Row : STYLES.percent);
+      });
       row++;
     });
 
@@ -1200,20 +1102,19 @@ function makeFullSheetStyled(stdRes, extraRes, concepts) {
   });
 
   setCell(ws, row, 0, 'ИМИДЖЕВЫЙ БЛОК', STYLES.section);
-  mergeRange(ws, row, 0, row, 4);
-  for (let c = 1; c <= 4; c++) ensureCell(ws, row, c).s = STYLES.section;
+  mergeRange(ws, row, 0, row, lastCol);
+  for (let c = 1; c <= lastCol; c++) ensureCell(ws, row, c).s = STYLES.section;
   row++;
 
-  Object.entries(stdRes.image).forEach(([k, vals]) => {
-    setCell(ws, row, 0, k, STYLES.label);
-    for (let i = 0; i < concepts.length; i++) {
-      setCell(ws, row, i + 1, vals[i], STYLES.percent);
-    }
+  Object.entries(stdRes.image).forEach(([label, vals]) => {
+    setCell(ws, row, 0, label, STYLES.label);
+    vals.forEach((v, i) => {
+      setPercent(ws, row, i + 1, v, STYLES.percent);
+    });
     row++;
   });
 
   row++;
-
   setCell(ws, row, 0, 'ПРЯМОЕ СРАВНЕНИЕ', STYLES.section);
   mergeRange(ws, row, 0, row, 2);
   for (let c = 1; c <= 2; c++) ensureCell(ws, row, c).s = STYLES.section;
@@ -1224,82 +1125,92 @@ function makeFullSheetStyled(stdRes, extraRes, concepts) {
   setCell(ws, row, 2, 'Куплю в первую очередь', STYLES.headerCenter);
   row++;
 
-  concepts.forEach((c, i) => {
-    setCell(ws, row, 0, c.label, STYLES.label);
-    setCell(ws, row, 1, stdRes.direct.likeMost.perConcept[i] || 0, STYLES.percent);
-    setCell(ws, row, 2, stdRes.direct.buyFirst.perConcept[i] || 0, STYLES.percent);
+  concepts.forEach((cpt, i) => {
+    setCell(ws, row, 0, cpt.label, STYLES.label);
+    setPercent(ws, row, 1, stdRes.direct.likeMost.perConcept[i] || 0, STYLES.percent);
+    setPercent(ws, row, 2, stdRes.direct.buyFirst.perConcept[i] || 0, STYLES.percent);
     row++;
   });
 
   setCell(ws, row, 0, 'Ни одно из них', STYLES.label);
-  setCell(ws, row, 1, stdRes.direct.likeMost.none || 0, STYLES.percent);
-  setCell(ws, row, 2, stdRes.direct.buyFirst.none || 0, STYLES.percent);
+  setPercent(ws, row, 1, stdRes.direct.likeMost.none || 0, STYLES.percent);
+  setPercent(ws, row, 2, stdRes.direct.buyFirst.none || 0, STYLES.percent);
   row++;
 
-  applyPercentFormat(ws, 0);
-  applySheetRangeRef(ws, row, 4);
+  applySheetRangeRef(ws, row, Math.max(lastCol, 2));
+  applyPercentFormat(ws);
   return ws;
 }
 
-// ---------- SIGNIFICANCE ----------
-
 function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, mode) {
   let row = startRow;
-  const endCol = startCol + 4;
+  const conceptCount = concepts.length;
+  const valueCols = mode === 'green' ? conceptCount : conceptCount * 2;
+  const lastCol = startCol + valueCols;
 
   setCell(ws, row, startCol, 'ПОЛНЫЕ ДАННЫЕ ПО ВСЕМ ВОПРОСАМ', STYLES.title);
-  mergeRange(ws, row, startCol, row, endCol);
-  for (let c = startCol + 1; c <= endCol; c++) ensureCell(ws, row, c).s = STYLES.title;
+  mergeRange(ws, row, startCol, row, lastCol);
+  for (let c = startCol + 1; c <= lastCol; c++) ensureCell(ws, row, c).s = STYLES.title;
   row++;
 
   setCell(ws, row, startCol, 'Тестируемые варианты названий', STYLES.headerCenter);
-  for (let i = 0; i < concepts.length; i++) {
-    setCell(ws, row, startCol + 1 + i, concepts[i].label + (mode === 'letters' ? ` (${concepts[i].code})` : ''), STYLES.headerCenter);
+
+  if (mode === 'green') {
+    concepts.forEach((cpt, i) => setCell(ws, row, startCol + 1 + i, cpt.label, STYLES.headerCenter));
+  } else {
+    concepts.forEach((cpt, i) => {
+      const base = startCol + 1 + i * 2;
+      setCell(ws, row, base, cpt.label, STYLES.headerCenter);
+      setCell(ws, row, base + 1, cpt.code, STYLES.headerCenter);
+    });
   }
   row++;
 
   setCell(ws, row, startCol, `База: n=${stdRes.n} респондентов | Все значения в %`, STYLES.base);
-  mergeRange(ws, row, startCol, row, endCol);
-  for (let c = startCol + 1; c <= endCol; c++) ensureCell(ws, row, c).s = STYLES.base;
+  mergeRange(ws, row, startCol, row, lastCol);
+  for (let c = startCol + 1; c <= lastCol; c++) ensureCell(ws, row, c).s = STYLES.base;
   row++;
 
   if (mode === 'green') {
     setCell(ws, row, startCol + 1, 'xx', STYLES.legendGreen);
     setCell(ws, row, startCol + 2, 'значимо выше 2 и более других названий', STYLES.legendText);
-    mergeRange(ws, row, startCol + 2, row, endCol);
+    if (lastCol >= startCol + 2) mergeRange(ws, row, startCol + 2, row, lastCol);
   } else {
-    setCell(ws, row, startCol + 1, 'AB', STYLES.legendAccent);
-    setCell(ws, row, startCol + 2, 'буквы рядом с процентом = значимо выше по сравнению с указанными названиями', STYLES.legendText);
-    mergeRange(ws, row, startCol + 2, row, endCol);
+    setCell(ws, row, startCol + 1, 'Х', STYLES.legendAccent);
+    setCell(ws, row, startCol + 2, 'значимо выше по сравнению с другими вариантами', STYLES.legendText);
+    if (lastCol >= startCol + 2) mergeRange(ws, row, startCol + 2, row, lastCol);
   }
   row++;
 
-  const blockKeys = ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish'];
-
-  blockKeys.forEach(key => {
+  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish'].forEach(key => {
     setCell(ws, row, startCol, blockTitleForKey(key), STYLES.blockTitle);
-    mergeRange(ws, row, startCol, row, endCol);
-    for (let c = startCol + 1; c <= endCol; c++) ensureCell(ws, row, c).s = STYLES.blockTitle;
+    mergeRange(ws, row, startCol, row, lastCol);
+    for (let c = startCol + 1; c <= lastCol; c++) ensureCell(ws, row, c).s = STYLES.blockTitle;
     row++;
 
-    const valueRows = blockValueRows(stdRes, key);
-    valueRows.forEach(([label, vals, level]) => {
+    blockValueRows(stdRes, key).forEach(([label, vals, level]) => {
       setCell(ws, row, startCol, label, level === 'top2' ? STYLES.top2Label : STYLES.label);
 
-      for (let i = 0; i < concepts.length; i++) {
-        if (mode === 'green') {
-          setCell(
+      if (mode === 'green') {
+        vals.forEach((v, i) => {
+          setPercent(
             ws,
             row,
             startCol + 1 + i,
-            vals[i],
-            isStrong2Plus(signifRes.scales[key][level], i) ? STYLES.percentGreen : (level === 'top2' ? STYLES.top2Row : STYLES.percent)
+            v,
+            isStrong2Plus(signifRes.scales[key][level], i)
+              ? STYLES.percentGreen
+              : (level === 'top2' ? STYLES.top2Row : STYLES.percent)
           );
-        } else {
-          const txt = withLettersText(vals[i], signifRes.scales[key][level][i]);
-          setCell(ws, row, startCol + 1 + i, txt, STYLES.stringAccent);
-        }
+        });
+      } else {
+        vals.forEach((v, i) => {
+          const base = startCol + 1 + i * 2;
+          setPercent(ws, row, base, v, level === 'top2' ? STYLES.top2Row : STYLES.percent);
+          setCell(ws, row, base + 1, (signifRes.scales[key][level][i] || []).join(','), STYLES.lettersOnly);
+        });
       }
+
       row++;
     });
 
@@ -1307,91 +1218,102 @@ function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, m
   });
 
   setCell(ws, row, startCol, 'ИМИДЖЕВЫЙ БЛОК', STYLES.section);
-  mergeRange(ws, row, startCol, row, endCol);
-  for (let c = startCol + 1; c <= endCol; c++) ensureCell(ws, row, c).s = STYLES.section;
+  mergeRange(ws, row, startCol, row, lastCol);
+  for (let c = startCol + 1; c <= lastCol; c++) ensureCell(ws, row, c).s = STYLES.section;
   row++;
 
-  Object.entries(stdRes.image).forEach(([k, vals]) => {
-    setCell(ws, row, startCol, k, STYLES.label);
-    for (let i = 0; i < concepts.length; i++) {
-      if (mode === 'green') {
-        setCell(
+  Object.entries(stdRes.image).forEach(([label, vals]) => {
+    setCell(ws, row, startCol, label, STYLES.label);
+
+    if (mode === 'green') {
+      vals.forEach((v, i) => {
+        setPercent(
           ws,
           row,
           startCol + 1 + i,
-          vals[i],
-          isStrong2Plus(signifRes.image[k], i) ? STYLES.percentGreen : STYLES.percent
+          v,
+          isStrong2Plus(signifRes.image[label], i) ? STYLES.percentGreen : STYLES.percent
         );
-      } else {
-        setCell(ws, row, startCol + 1 + i, withLettersText(vals[i], signifRes.image[k][i]), STYLES.stringAccent);
-      }
-    }
-    row++;
-  });
-
-  row++;
-
-  setCell(ws, row, startCol, 'ПРЯМОЕ СРАВНЕНИЕ', STYLES.section);
-  mergeRange(ws, row, startCol, row, startCol + 2);
-  for (let c = startCol + 1; c <= startCol + 2; c++) ensureCell(ws, row, c).s = STYLES.section;
-  row++;
-
-  setCell(ws, row, startCol, 'Название', STYLES.headerCenter);
-  setCell(ws, row, startCol + 1, 'Нравится больше всего', STYLES.headerCenter);
-  setCell(ws, row, startCol + 2, 'Куплю в первую очередь', STYLES.headerCenter);
-  row++;
-
-  concepts.forEach((c, i) => {
-    setCell(ws, row, startCol, c.label, STYLES.label);
-    if (mode === 'green') {
-      setCell(ws, row, startCol + 1, stdRes.direct.likeMost.perConcept[i] || 0, signifRes.directMax.likeMost[i] ? STYLES.percentGreen : STYLES.percent);
-      setCell(ws, row, startCol + 2, stdRes.direct.buyFirst.perConcept[i] || 0, signifRes.directMax.buyFirst[i] ? STYLES.percentGreen : STYLES.percent);
+      });
     } else {
-      setCell(ws, row, startCol + 1, Math.round((stdRes.direct.likeMost.perConcept[i] || 0) * 100) + '%', STYLES.stringAccent);
-      setCell(ws, row, startCol + 2, Math.round((stdRes.direct.buyFirst.perConcept[i] || 0) * 100) + '%', STYLES.stringAccent);
+      vals.forEach((v, i) => {
+        const base = startCol + 1 + i * 2;
+        setPercent(ws, row, base, v, STYLES.percent);
+        setCell(ws, row, base + 1, (signifRes.image[label][i] || []).join(','), STYLES.lettersOnly);
+      });
     }
+
     row++;
   });
 
-  setCell(ws, row, startCol, 'Ни одно из них', STYLES.label);
-  if (mode === 'green') {
-    setCell(ws, row, startCol + 1, stdRes.direct.likeMost.none || 0, STYLES.percent);
-    setCell(ws, row, startCol + 2, stdRes.direct.buyFirst.none || 0, STYLES.percent);
-  } else {
-    setCell(ws, row, startCol + 1, Math.round((stdRes.direct.likeMost.none || 0) * 100) + '%', STYLES.stringAccent);
-    setCell(ws, row, startCol + 2, Math.round((stdRes.direct.buyFirst.none || 0) * 100) + '%', STYLES.stringAccent);
-  }
+  row++;
+  setCell(ws, row, startCol, 'ПРЯМОЕ СРАВНЕНИЕ', STYLES.section);
+  mergeRange(ws, row, startCol, row, startCol + (mode === 'green' ? 2 : 4));
   row++;
 
-  return row;
+  if (mode === 'green') {
+    setCell(ws, row, startCol, 'Название', STYLES.headerCenter);
+    setCell(ws, row, startCol + 1, 'Нравится больше всего', STYLES.headerCenter);
+    setCell(ws, row, startCol + 2, 'Куплю в первую очередь', STYLES.headerCenter);
+    row++;
+
+    concepts.forEach((cpt, i) => {
+      setCell(ws, row, startCol, cpt.label, STYLES.label);
+      setPercent(ws, row, startCol + 1, stdRes.direct.likeMost.perConcept[i] || 0, signifRes.directMax.likeMost[i] ? STYLES.percentGreen : STYLES.percent);
+      setPercent(ws, row, startCol + 2, stdRes.direct.buyFirst.perConcept[i] || 0, signifRes.directMax.buyFirst[i] ? STYLES.percentGreen : STYLES.percent);
+      row++;
+    });
+
+    setCell(ws, row, startCol, 'Ни одно из них', STYLES.label);
+    setPercent(ws, row, startCol + 1, stdRes.direct.likeMost.none || 0, STYLES.percent);
+    setPercent(ws, row, startCol + 2, stdRes.direct.buyFirst.none || 0, STYLES.percent);
+    row++;
+  } else {
+    setCell(ws, row, startCol, 'Название', STYLES.headerCenter);
+    setCell(ws, row, startCol + 1, 'Нравится', STYLES.headerCenter);
+    setCell(ws, row, startCol + 2, 'Х', STYLES.headerCenter);
+    setCell(ws, row, startCol + 3, 'Куплю', STYLES.headerCenter);
+    setCell(ws, row, startCol + 4, 'Х', STYLES.headerCenter);
+    row++;
+
+    concepts.forEach((cpt, i) => {
+      setCell(ws, row, startCol, cpt.label, STYLES.label);
+      setPercent(ws, row, startCol + 1, stdRes.direct.likeMost.perConcept[i] || 0, STYLES.percent);
+      setCell(ws, row, startCol + 2, '', STYLES.lettersOnly);
+      setPercent(ws, row, startCol + 3, stdRes.direct.buyFirst.perConcept[i] || 0, STYLES.percent);
+      setCell(ws, row, startCol + 4, '', STYLES.lettersOnly);
+      row++;
+    });
+
+    setCell(ws, row, startCol, 'Ни одно из них', STYLES.label);
+    setPercent(ws, row, startCol + 1, stdRes.direct.likeMost.none || 0, STYLES.percent);
+    setCell(ws, row, startCol + 2, '', STYLES.lettersOnly);
+    setPercent(ws, row, startCol + 3, stdRes.direct.buyFirst.none || 0, STYLES.percent);
+    setCell(ws, row, startCol + 4, '', STYLES.lettersOnly);
+    row++;
+  }
+
+  return { endRow: row, endCol: lastCol };
 }
 
 function makeSignifSheetStyled(stdRes, concepts, signifRes) {
   const ws = {};
+  const conceptCount = concepts.length;
 
-  ws['!cols'] = [
-    { wch: 40 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 4 },
-    { wch: 40 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 }
-  ];
+  const leftCols = [{ wch: 40 }, ...Array.from({ length: conceptCount }, () => ({ wch: 14 }))];
+  const spacer = [{ wch: 4 }];
+  const rightCols = [{ wch: 40 }, ...Array.from({ length: conceptCount }, () => ({ wch: 12 })), ...Array.from({ length: conceptCount }, () => ({ wch: 8 }))];
 
-  const endLeft = writeSignifBlock(ws, 0, 0, stdRes, concepts, signifRes, 'green');
-  const endRight = writeSignifBlock(ws, 0, 6, stdRes, concepts, signifRes, 'letters');
+  ws['!cols'] = [...leftCols, ...spacer, ...rightCols];
 
-  applyPercentFormat(ws, 0);
-  applySheetRangeRef(ws, Math.max(endLeft, endRight), 10);
+  const left = writeSignifBlock(ws, 0, 0, stdRes, concepts, signifRes, 'green');
+  const rightStart = leftCols.length + 1;
+  const right = writeSignifBlock(ws, 0, rightStart, stdRes, concepts, signifRes, 'letters');
+
+  applySheetRangeRef(ws, Math.max(left.endRow, right.endRow), Math.max(left.endCol, right.endCol));
+  applyPercentFormat(ws);
   return ws;
 }
-
-// ---------- AUDIENCE ----------
 
 function makeAudienceSheet(audienceRes) {
   const ws = [];
@@ -1413,5 +1335,7 @@ function makeAudienceSheet(audienceRes) {
   addFreq('Возраст', audienceRes.age);
   addFreq('Частота посещения Бургер Кинг', audienceRes.freqBK);
 
-  return XLSX.utils.aoa_to_sheet(ws);
+  const sheet = XLSX.utils.aoa_to_sheet(ws);
+  applyPercentFormat(sheet);
+  return sheet;
 }
