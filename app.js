@@ -1,11 +1,10 @@
+// app.js
 const baseInput = document.getElementById('baseFile');
 const statusEl = document.getElementById('status');
 const mappingSection = document.getElementById('mappingSection');
-const imageSection = document.getElementById('imageSection');
 const extraSection = document.getElementById('extraSection');
 const runSection = document.getElementById('runSection');
 const standardGroupsEl = document.getElementById('standardGroups');
-const imageStatementsEl = document.getElementById('imageStatements');
 const extraQuestionsEl = document.getElementById('extraQuestions');
 const runBtn = document.getElementById('runBtn');
 
@@ -13,6 +12,20 @@ let baseFile;
 let parsed = null;
 let autoMapping = null;
 let userConfig = null;
+
+function debugLine(...parts) {
+  const msg = parts.map(x => {
+    if (typeof x === 'string') return x;
+    try { return JSON.stringify(x); } catch (_) { return String(x); }
+  }).join(' ');
+
+  console.log('[DEBUG]', ...parts);
+
+  if (statusEl) {
+    const prev = statusEl.textContent || '';
+    statusEl.textContent = prev ? (prev + '\n[DEBUG] ' + msg) : ('[DEBUG] ' + msg);
+  }
+}
 
 function normalizeText(s) {
   return String(s || '')
@@ -25,47 +38,14 @@ function normalizeText(s) {
     .trim();
 }
 
-function status(text, ok = false, isError = false) {
-  if (!statusEl) return;
-  statusEl.textContent = text;
-  statusEl.classList.toggle('ok', ok);
-  statusEl.classList.toggle('error', isError);
-}
-
-function resetState() {
-  parsed = null;
-  autoMapping = null;
-  userConfig = null;
-
-  mappingSection?.classList.add('hidden');
-  imageSection?.classList.add('hidden');
-  extraSection?.classList.add('hidden');
-  runSection?.classList.add('hidden');
-
-  if (standardGroupsEl) standardGroupsEl.innerHTML = '';
-  if (imageStatementsEl) imageStatementsEl.innerHTML = '';
-  if (extraQuestionsEl) extraQuestionsEl.innerHTML = '';
-}
-
-function splitHeaderRows(data) {
-  if (!data || data.length < 2) return { header: [], rows: [] };
-
-  const questionTexts = (data[0] || []).map(v => String(v || '').trim());
-  const varNames = (data[1] || []).map(v => String(v || '').trim());
-  const header = questionTexts.map((txt, i) => txt || varNames[i] || `col_${i}`);
-  const rows = data.slice(2).filter(r => r && r.some(v => v !== null && v !== ''));
-
-  return { header, rows };
-}
-
 function looksLikeFitDishQuestion(h) {
   const t = normalizeText(h);
   if (t.includes('для бренда бургер кинг')) return false;
 
   const hasMainStem =
+    t.includes('насколько каждое из этих названий') &&
     t.includes('подходит') &&
-    t.includes('не подходит') &&
-    (t.includes('насколько каждое из этих названий') || t.includes('насколько каждое из названий') || t.includes('насколько название подходит'));
+    t.includes('не подходит');
 
   const productStem =
     t.includes('для этого') ||
@@ -92,7 +72,7 @@ function looksLikeFitDishQuestion(h) {
 function looksLikeShareIntentQuestion(h) {
   const t = normalizeText(h);
   return (
-    (t.includes('для каждого названия') || t.includes('оцените') || t.includes('насколько вероятно')) &&
+    (t.includes('для каждого названия') || t.includes('оцените')) &&
     (t.includes('расскажете') || t.includes('поделитесь') || t.includes('поделиться')) &&
     (t.includes('соцсет') || t.includes('социальных сет') || t.includes('друзьям'))
   );
@@ -114,7 +94,7 @@ const IMAGE_STATEMENT_CONFIG = [
   { key: 'Продукт с юмором', aliases: ['соус с юмором', 'бургер с юмором', 'продукт с юмором'] },
   { key: 'Хочется попробовать', aliases: ['хочется попробовать воппер с таким соусом', 'хочется попробовать такой бургер', 'хочется попробовать такой капучино', 'хочется попробовать такой напиток', 'хочется попробовать такой продукт'] },
   { key: 'Ассоциируется с приятным вкусом', aliases: ['этот соус ассоциируется с приятным вкусом', 'этот бургер ассоциируется с приятным вкусом', 'этот продукт ассоциируется с приятным вкусом'] },
-  { key: 'Уникальная новинка', aliases: ['это уникальная новинка', 'это уникальный бургер', 'это уникальный продукт', 'оригинальное, отличается от других'] },
+  { key: 'Уникальная новинка', aliases: ['это уникальная новинка', 'это уникальный бургер', 'это уникальный продукт', 'оригинальное, отличается от других', 'это уникальный напиток'] },
   { key: 'Понятное и простое название', aliases: ['понятное и простое название'] },
   { key: 'Вызывает отторжение', aliases: ['этот соус вызывает отторжение', 'этот продукт вызывает отторжение', 'этот бургер вызывает отторжение'] },
   { key: 'Понятно, какой будет вкус', aliases: ['понятно, с каким вкусом будет этот бургер', 'понятно, с каким вкусом будет этот соус', 'понятно, с каким вкусом будет этот продукт', 'понятно какой будет вкус'] },
@@ -123,8 +103,8 @@ const IMAGE_STATEMENT_CONFIG = [
   { key: 'Вызывает доверие', aliases: ['вызывает у меня доверие', 'вызывает доверие'] },
   { key: 'Звучит как натуральный продукт', aliases: ['звучит как натуральный продукт'] },
   { key: 'Звучит как качественный продукт', aliases: ['звучит как качественный продукт'] },
-  { key: 'По названию понятен маленький формат', aliases: ['по названию понятно, что это мини-бургеры', 'по названию понятно, что это маленький формат'] },
-  { key: 'По названию понятно, что внутри несколько вкусов', aliases: ['по названию понятно, что внутри несколько разных бургеров', 'по названию понятно, что внутри несколько разных вкусов'] },
+  { key: 'По названию понятен маленький формат', aliases: ['по названию понятно, что это мини-бургеры', 'по названию понятно, что это маленький формат', 'по названию понятно, что это мини формат', 'маленький формат'] },
+  { key: 'По названию понятно, что внутри несколько вкусов', aliases: ['по названию понятно, что внутри несколько разных бургеров', 'по названию понятно, что внутри несколько разных вкусов', 'внутри несколько разных вкусов'] },
   { key: 'Хорошо передает идею набора', aliases: ['это название хорошо передает идею набора', 'хорошо передает идею набора'] },
   { key: 'Название звучит странно или отталкивающе', aliases: ['название звучит странно или отталкивающе'] },
   { key: 'Название из детского меню / продукт для детей', aliases: ['название из детского меню', 'продукт для детей'] },
@@ -143,32 +123,170 @@ function detectImageStatementKey(headerText) {
   return null;
 }
 
-function getQuestionFamily(headerText) {
-  const t = normalizeText(headerText);
-
-  if (t.includes('насколько каждое из этих высказываний подходит') || t.includes('подходит или не подходит для описания именно вас')) {
-    return 'self description';
+if (typeof XLSX !== 'object') {
+  if (statusEl) {
+    statusEl.textContent = 'Ошибка: библиотека XLSX не загружена. Попробуйте обновить страницу.';
+    statusEl.className = 'status error';
   }
-  if (t.includes('насколько вероятно') && t.includes('порекоменду')) return 'recommend';
-  if (t.includes('с каким из этих названий')) return 'single choice';
-  if (t.includes('какое из перечисленных')) return 'single choice';
-  if (t.includes('насколько вероятно')) return 'intent';
-  if (t.includes('оцените')) return 'rating';
-  if (t.includes('насколько')) return 'scale';
-  return 'other';
+} else if (!baseInput) {
+  if (statusEl) {
+    statusEl.textContent = 'Ошибка: на странице не найден input с id="baseFile".';
+    statusEl.className = 'status error';
+  }
+} else {
+  baseInput.addEventListener('click', () => {
+    baseInput.value = '';
+  });
+
+  baseInput.addEventListener('change', async e => {
+    debugLine('change fired');
+
+    baseFile = e.target.files[0] || null;
+    debugLine('baseFile =', baseFile ? { name: baseFile.name, size: baseFile.size, type: baseFile.type } : null);
+
+    resetState();
+    debugLine('resetState done');
+
+    if (!baseFile) {
+      status('Файл не выбран');
+      debugLine('no file selected');
+      return;
+    }
+
+    status('Читаю базу...\nЭто может занять до минуты.');
+    debugLine('starting read');
+
+    try {
+      const arrayBuffer = await baseFile.arrayBuffer();
+      debugLine('arrayBuffer ok, bytes =', arrayBuffer.byteLength);
+
+      const wb = XLSX.read(arrayBuffer, { type: 'array' });
+      debugLine('xlsx read ok, sheets =', wb.SheetNames);
+
+      const sheetName = wb.SheetNames[wb.SheetNames.length - 1];
+      debugLine('selected sheet =', sheetName);
+
+      const sheet = wb.Sheets[sheetName];
+      const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+      debugLine('sheet_to_json ok, rows =', data.length);
+
+      const { header, rows } = splitHeaderRows(data);
+      debugLine('splitHeaderRows ok, header len = ' + header.length + ', rows len = ' + rows.length);
+      debugLine('header sample = ' + JSON.stringify(header.slice(0, 8)));
+
+      parsed = { header, rows };
+      debugLine('parsed assigned');
+
+      autoMapping = autoDetectMapping(header);
+      debugLine('autoDetectMapping ok = ' + JSON.stringify({
+        like: autoMapping.std.like.length,
+        fitDish: autoMapping.std.fitDish.length,
+        fitBrand: autoMapping.std.fitBrand.length,
+        visitBK: autoMapping.std.visitBK.length,
+        buyDish: autoMapping.std.buyDish.length,
+        shareIntent: autoMapping.std.shareIntent.length,
+        image: autoMapping.std.image.length,
+        directLike: autoMapping.std.directLike.length,
+        directBuy: autoMapping.std.directBuy.length,
+        extraCandidates: autoMapping.extraCandidates.length
+      }));
+
+      debugLine('matched like headers = ' + JSON.stringify(autoMapping.std.like.map(i => header[i]).slice(0, 5)));
+      debugLine('matched fitDish headers = ' + JSON.stringify(autoMapping.std.fitDish.map(i => header[i]).slice(0, 5)));
+      debugLine('matched fitBrand headers = ' + JSON.stringify(autoMapping.std.fitBrand.map(i => header[i]).slice(0, 5)));
+      debugLine('matched buyDish headers = ' + JSON.stringify(autoMapping.std.buyDish.map(i => header[i]).slice(0, 5)));
+      debugLine('matched shareIntent headers = ' + JSON.stringify(autoMapping.std.shareIntent.map(i => header[i]).slice(0, 5)));
+      debugLine('matched extra headers = ' + JSON.stringify(autoMapping.extraCandidates.map(x => x.header).slice(0, 10)));
+
+      renderStandardMappingUI(autoMapping, header);
+      debugLine('renderStandardMappingUI ok');
+
+      renderExtraQuestionsUI(autoMapping, header);
+      debugLine('renderExtraQuestionsUI ok');
+
+      if (mappingSection) mappingSection.style.display = '';
+      if (extraSection) extraSection.style.display = '';
+      if (runSection) runSection.style.display = '';
+      debugLine('sections shown');
+
+      status('База загружена. Проверьте найденные вопросы и доп.метрики, затем нажмите «Посчитать топлайн».', true);
+    } catch (e) {
+      console.error(e);
+      debugLine('READ ERROR =', e && e.message ? e.message : String(e));
+      status('Ошибка при чтении файла: ' + (e && e.message ? e.message : String(e)), false, true);
+    }
+  });
+
+  runBtn.addEventListener('click', () => {
+    if (!parsed || !autoMapping) {
+      status('Сначала загрузите файл и дождитесь определения вопросов.', false, true);
+      return;
+    }
+
+    try {
+      userConfig = collectUserConfig(autoMapping);
+    } catch (e) {
+      status('Нужно завершить настройку вопросов: ' + e.message, false, true);
+      return;
+    }
+
+    try {
+      runBtn.disabled = true;
+      status('Считаю топлайн...\nПодождите, формируется Excel.');
+
+      const { header, rows } = parsed;
+      const concepts = inferConcepts(header, userConfig);
+      const stdResults = calcStandardBlocks(rows, userConfig, concepts, header);
+      const extraResults = calcExtraBlocks(rows, userConfig);
+      const audienceRes = calcAudience(rows, userConfig);
+      const signifRes = calcSignificance(stdResults, concepts, rows.length);
+
+      const outWb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(outWb, makeSummarySheetStyled(stdResults, concepts, signifRes, extraResults), 'САММАРИ');
+      XLSX.utils.book_append_sheet(outWb, makeFullSheetStyled(stdResults, concepts, extraResults), 'полные таблицы');
+      XLSX.utils.book_append_sheet(outWb, makeSignifSheetStyled(stdResults, concepts, signifRes), 'значимости');
+      XLSX.utils.book_append_sheet(outWb, makeAudienceSheetStyled(audienceRes), 'Аудитория');
+
+      const outName = 'Topline_' + (baseFile.name.replace(/\.[^.]+$/, '') || 'output') + '.xlsx';
+      XLSX.writeFile(outWb, outName);
+      status('Готово. Файл ' + outName + ' сохранён.', true);
+    } catch (e) {
+      console.error(e);
+      status('Ошибка при расчете: ' + (e && e.message ? e.message : String(e)), false, true);
+    } finally {
+      runBtn.disabled = false;
+    }
+  });
 }
 
-function autoMetricTitleFromHeader(headerText) {
-  const t = normalizeText(headerText);
+function resetState() {
+  parsed = null;
+  autoMapping = null;
+  userConfig = null;
 
-  if (t.includes('обычно в курсе новых блюд') || t.includes('обычно в курсе новинок')) return 'В курсе новинок';
-  if (t.includes('друзья и знакомые часто спрашивают')) return 'Лидер мнений';
-  if (t.includes('люблю пробовать новое')) return 'Любит пробовать новое';
-  if (t.includes('часто обращаю внимание')) return 'Обращает внимание на новинки';
-  if (t.includes('подходит или не подходит для описания именно вас')) return 'Имидж / описание аудитории';
-  if (t.includes('порекомендовали бы')) return 'Готовность рекомендовать';
-  if (t.includes('расскажете') || t.includes('поделитесь')) return 'Готовность делиться';
-  return 'Дополнительная метрика';
+  if (mappingSection) mappingSection.style.display = 'none';
+  if (extraSection) extraSection.style.display = 'none';
+  if (runSection) runSection.style.display = 'none';
+  if (standardGroupsEl) standardGroupsEl.innerHTML = '';
+  if (extraQuestionsEl) extraQuestionsEl.innerHTML = '';
+}
+
+function status(text, ok = false, isError = false) {
+  if (!statusEl) return;
+  statusEl.textContent = text;
+  statusEl.classList.toggle('ok', ok);
+  statusEl.classList.toggle('error', isError);
+}
+
+function splitHeaderRows(data) {
+  if (!data || data.length < 2) return { header: [], rows: [] };
+
+  const questionTexts = (data[0] || []).map(v => String(v || '').trim());
+  const varNames = (data[1] || []).map(v => String(v || '').trim());
+  const header = questionTexts.map((txt, i) => txt || varNames[i] || `col_${i}`);
+  const rows = data.slice(2).filter(r => r && r.some(v => v !== null && v !== ''));
+
+  return { header, rows };
 }
 
 function autoDetectMapping(header) {
@@ -224,7 +342,7 @@ function autoDetectMapping(header) {
 
     if (text.includes('Укажите Ваш пол')) std.audience.sex = idx;
     if (text.includes('Укажите Ваш возраст')) std.audience.age = idx;
-    if ((text.includes('Как часто Вы берете новинки') || text.includes('Как часто вы берете новинки')) && std.audience.freqNew == null) std.audience.freqNew = idx;
+    if (text.includes('Как часто Вы берете новинки') || text.includes('Как часто вы берете новинки')) std.audience.freqNew = idx;
     if ((text.includes('Как часто вы покупаете') || text.includes('Как часто Вы покупаете')) && std.audience.freqProd == null) std.audience.freqProd = idx;
     if (text.includes('Как часто вы посещаете Бургер Кинг')) std.audience.freqBK = idx;
   });
@@ -259,120 +377,69 @@ function autoDetectMapping(header) {
       lower.includes('какое из перечисленных') ||
       lower.includes('с каким из этих названий') ||
       lower.includes('насколько вероятно') ||
+      lower.includes('какой из этих') ||
       lower.includes('что из перечисленного');
 
     if (!looksClosed) return null;
-
-    return {
-      idx,
-      header: h,
-      family: getQuestionFamily(h),
-      suggestedTitle: autoMetricTitleFromHeader(h)
-    };
+    return { idx, header: h };
   }).filter(Boolean);
 
   return { std, extraCandidates };
 }
 
 function renderStandardMappingUI(mapping, header) {
-  standardGroupsEl.innerHTML = '';
-
   const groups = [
-    { key: 'like', label: 'Нравится название', indexes: mapping.std.like, note: 'Шкала 1–5, Top-2' },
-    { key: 'fitDish', label: 'Подходит для блюда / продукта', indexes: mapping.std.fitDish, note: 'Шкала 1–5, Top-2' },
-    { key: 'fitBrand', label: 'Подходит для бренда', indexes: mapping.std.fitBrand, note: 'Шкала 1–5, Top-2' },
-    { key: 'visitBK', label: 'Намерение посетить БК', indexes: mapping.std.visitBK, note: 'Шкала 1–5, Top-2' },
-    { key: 'buyDish', label: 'Намерение купить', indexes: mapping.std.buyDish, note: 'Шкала 1–5, Top-2' },
-    { key: 'shareIntent', label: 'Намерение рассказать / поделиться', indexes: mapping.std.shareIntent, note: 'Шкала 1–5, Top-2' },
-    { key: 'directLike', label: 'Прямое сравнение: нравится больше всего', indexes: mapping.std.directLike, note: 'Single choice' },
-    { key: 'directBuy', label: 'Прямое сравнение: куплю в первую очередь', indexes: mapping.std.directBuy, note: 'Single choice' },
-    { key: 'directShare', label: 'Прямое сравнение: рассказал(а) бы / поделился(ась) бы в первую очередь', indexes: mapping.std.directShare, note: 'Single choice' }
+    { key: 'like', label: 'Нравится название (шкала 1–5, Top‑2)', indexes: mapping.std.like },
+    { key: 'fitDish', label: 'Подходит для блюда / продукта (шкала 1–5, Top‑2)', indexes: mapping.std.fitDish },
+    { key: 'fitBrand', label: 'Подходит для бренда (шкала 1–5, Top‑2)', indexes: mapping.std.fitBrand },
+    { key: 'visitBK', label: 'Намерение посетить БК (шкала 1–5, Top‑2)', indexes: mapping.std.visitBK },
+    { key: 'buyDish', label: 'Намерение купить (шкала 1–5, Top‑2)', indexes: mapping.std.buyDish },
+    { key: 'shareIntent', label: 'Намерение рассказать / поделиться (шкала 1–5, Top‑2)', indexes: mapping.std.shareIntent },
+    { key: 'directCompare', label: 'Прямое сравнение', indexes: [...mapping.std.directLike, ...mapping.std.directBuy, ...mapping.std.directShare] }
   ];
 
+  standardGroupsEl.innerHTML = '';
+
   groups.forEach(group => {
-    const card = document.createElement('div');
-    card.className = 'compact-card' + (!group.indexes.length ? ' disabled' : '');
+    const col = document.createElement('div');
+    col.className = 'col-half mapping-group';
 
-    const count = group.indexes.length;
-    const countText = count ? `Найдено названий: ${count}` : 'Не найдено';
+    const title = document.createElement('div');
+    title.className = 'mapping-group-title';
+    title.textContent = group.label;
+    col.appendChild(title);
 
-    card.innerHTML = `
-      <div class="compact-top">
-        <div>
-          <div class="checkline">
-            <input type="checkbox" ${count ? 'checked' : ''} ${count ? '' : 'disabled'} data-group-master="${group.key}">
-            <h3 class="compact-title">${group.label}</h3>
-          </div>
-          <p class="compact-note">${group.note}</p>
-        </div>
-        <div class="compact-meta">
-          <span class="badge ${count ? 'blue' : 'gray'}">${countText}</span>
-        </div>
-      </div>
-      ${count ? `
-        <details class="compact-details">
-          <summary>Показать детали</summary>
-          <div class="detail-list">
-            ${group.indexes.map(idx => `
-              <label class="detail-item">
-                <input type="checkbox" checked data-std-key="${group.key}" data-col-idx="${idx}">
-                ${header[idx]}
-              </label>
-            `).join('')}
-          </div>
-        </details>
-      ` : `<p class="compact-note">По текущей базе этот блок не найден автоматически.</p>`}
-    `;
+    const list = document.createElement('div');
+    list.className = 'mapping-list';
 
-    standardGroupsEl.appendChild(card);
-  });
+    if (!group.indexes.length) {
+      const empty = document.createElement('div');
+      empty.className = 'mapping-item';
+      empty.innerHTML = 'Колонки не найдены по ключевым словам';
+      list.appendChild(empty);
+    } else {
+      group.indexes.forEach(idx => {
+        const item = document.createElement('div');
+        item.className = 'mapping-item';
+        const id = `std-${group.key}-${idx}`;
+        let stdKey = group.key;
 
-  standardGroupsEl.querySelectorAll('[data-group-master]').forEach(master => {
-    master.addEventListener('change', e => {
-      const key = e.target.getAttribute('data-group-master');
-      standardGroupsEl.querySelectorAll(`input[data-std-key="${key}"]`).forEach(cb => {
-        cb.checked = e.target.checked;
+        if (group.key === 'directCompare') {
+          if (mapping.std.directLike.includes(idx)) stdKey = 'directLike';
+          else if (mapping.std.directBuy.includes(idx)) stdKey = 'directBuy';
+          else stdKey = 'directShare';
+        }
+
+        item.innerHTML = `
+          <input type="checkbox" id="${id}" data-std-key="${stdKey}" data-col-idx="${idx}" checked>
+          <label for="${id}"><small>${header[idx]}</small></label>
+        `;
+        list.appendChild(item);
       });
-    });
-  });
-}
+    }
 
-function renderImageStatementsUI(mapping, header) {
-  imageStatementsEl.innerHTML = '';
-
-  const grouped = {};
-  IMAGE_STATEMENT_CONFIG.forEach(item => { grouped[item.key] = []; });
-  mapping.std.image.forEach(item => {
-    if (!grouped[item.key]) grouped[item.key] = [];
-    grouped[item.key].push(item.idx);
-  });
-
-  Object.keys(grouped).forEach(key => {
-    const indexes = grouped[key];
-    const row = document.createElement('div');
-    row.className = 'image-row';
-
-    row.innerHTML = `
-      <div>
-        <p class="image-row-title">${key}</p>
-        <p class="image-row-sub">
-          ${indexes.length
-            ? `Найдено колонок: ${indexes.length}. Можно раскрыть и проверить формулировки.`
-            : `Автоматически не найдено. Если в новой базе появится новая формулировка, её можно будет добавить в словарь app.js.`}
-        </p>
-        ${indexes.length ? `
-          <details class="compact-details">
-            <summary>Посмотреть найденные формулировки</summary>
-            <div class="detail-list">
-              ${indexes.map(idx => `<div class="detail-item">${header[idx]}</div>`).join('')}
-            </div>
-          </details>
-        ` : ''}
-      </div>
-      <span class="badge ${indexes.length ? 'green' : 'orange'}">${indexes.length ? 'найдено' : 'не найдено'}</span>
-    `;
-
-    imageStatementsEl.appendChild(row);
+    col.appendChild(list);
+    standardGroupsEl.appendChild(col);
   });
 }
 
@@ -380,88 +447,52 @@ function renderExtraQuestionsUI(mapping) {
   extraQuestionsEl.innerHTML = '';
 
   if (!mapping.extraCandidates.length) {
-    extraQuestionsEl.innerHTML = `<div class="status">Дополнительные закрытые вопросы не найдены.</div>`;
+    extraQuestionsEl.innerHTML = '<div class="status">Дополнительные закрытые вопросы не найдены.</div>';
     return;
   }
 
-  const grouped = {};
-  mapping.extraCandidates.forEach(item => {
-    const groupKey = `${item.family}::${item.suggestedTitle}`;
-    if (!grouped[groupKey]) {
-      grouped[groupKey] = {
-        title: item.suggestedTitle,
-        family: item.family,
-        items: []
-      };
-    }
-    grouped[groupKey].items.push(item);
-  });
-
-  Object.values(grouped).forEach((group, groupIndex) => {
+  mapping.extraCandidates.forEach(q => {
     const wrap = document.createElement('div');
-    wrap.className = 'extra-group';
+    wrap.className = 'card';
+    wrap.style.marginBottom = '1rem';
 
     wrap.innerHTML = `
-      <div class="checkline">
-        <input type="checkbox" checked data-extra-group-enabled="${groupIndex}">
-        <h3 class="compact-title">${group.title}</h3>
-      </div>
-
-      <div class="compact-meta">
-        <span class="badge blue">Группа: ${group.family}</span>
-        <span class="badge gray">Найдено вопросов: ${group.items.length}</span>
-      </div>
-
-      <div class="row" style="margin-top:14px;">
-        <div class="field">
-          <label>Название метрики в topline</label>
-          <input type="text" value="${group.title}" data-extra-group-title="${groupIndex}">
-        </div>
-        <div class="field">
-          <label>Тип вопроса</label>
-          <select data-extra-group-type="${groupIndex}">
-            <option value="scale5">Шкала 1–5</option>
-            <option value="single">Single choice</option>
-          </select>
-        </div>
-      </div>
-
       <div class="field">
-        <label>Куда выводить</label>
-        <div class="toggle-pills" data-extra-group-where="${groupIndex}">
-          <label><input type="checkbox" value="summary" checked> САММАРИ</label>
-          <label><input type="checkbox" value="full" checked> Полные таблицы</label>
-          <label><input type="checkbox" value="signif"> Значимости</label>
-        </div>
+        <label>
+          <input type="checkbox" data-extra-idx="${q.idx}" checked>
+          Использовать этот вопрос как доп.метрику
+        </label>
+        <div><small>${q.header}</small></div>
       </div>
 
-      <details class="compact-details">
-        <summary>Показать вопросы в группе</summary>
-        <div class="detail-list">
-          ${group.items.map(item => `
-            <label class="detail-item">
-              <input type="checkbox" checked data-extra-group-item="${groupIndex}" data-extra-idx="${item.idx}">
-              ${item.header}
-            </label>
-          `).join('')}
+      <div class="row">
+        <div class="col-half">
+          <div class="field">
+            <label>Название метрики в топлайне</label>
+            <input type="text" data-extra-idx="${q.idx}" data-role="title" placeholder="Напр. Осведомленность">
+          </div>
+          <div class="field">
+            <label>Тип вопроса</label>
+            <select data-extra-idx="${q.idx}" data-role="type">
+              <option value="scale5">Шкала 1–5</option>
+              <option value="single">Single choice</option>
+            </select>
+          </div>
         </div>
-      </details>
-
-      <div class="inline-help">
-        Название задаётся один раз на всю группу. Если нужно, внутри группы можно снять галочку с отдельных вопросов.
+        <div class="col-half">
+          <div class="field">
+            <label>Куда выводить</label>
+            <div class="pill-checkboxes" data-extra-idx="${q.idx}" data-role="where">
+              <label><input type="checkbox" value="summary" checked> САММАРИ</label>
+              <label><input type="checkbox" value="full" checked> полные таблицы</label>
+              <label><input type="checkbox" value="signif"> значимости</label>
+            </div>
+          </div>
+        </div>
       </div>
     `;
 
     extraQuestionsEl.appendChild(wrap);
-  });
-
-  extraQuestionsEl.querySelectorAll('[data-extra-group-enabled]').forEach(master => {
-    master.addEventListener('change', e => {
-      const groupIndex = e.target.getAttribute('data-extra-group-enabled');
-      extraQuestionsEl.querySelectorAll(`[data-extra-group-item="${groupIndex}"]`).forEach(cb => {
-        cb.checked = e.target.checked;
-      });
-    });
   });
 }
 
@@ -484,39 +515,31 @@ function collectUserConfig(mapping) {
     if (!cb.checked) return;
     const key = cb.getAttribute('data-std-key');
     const idx = Number(cb.getAttribute('data-col-idx'));
-    if (stdSelected[key]) stdSelected[key].push(idx);
+    stdSelected[key].push(idx);
   });
 
   const extra = [];
-  const allItemCheckboxes = [...document.querySelectorAll('[data-extra-group-item]')];
-  const groupIndexes = [...new Set(allItemCheckboxes.map(el => el.getAttribute('data-extra-group-item')))];
-  groupIndexes.forEach(groupIndex => {
-    const enabled = document.querySelector(`[data-extra-group-enabled="${groupIndex}"]`);
-    if (!enabled || !enabled.checked) return;
 
-    const title = (document.querySelector(`[data-extra-group-title="${groupIndex}"]`)?.value || '').trim();
-    const qtype = document.querySelector(`[data-extra-group-type="${groupIndex}"]`)?.value || 'scale5';
-    const whereWrap = document.querySelector(`[data-extra-group-where="${groupIndex}"]`);
+  mapping.extraCandidates.forEach(q => {
+    const enabledCb = document.querySelector(`input[type="checkbox"][data-extra-idx="${q.idx}"]`);
+    if (!enabledCb || !enabledCb.checked) return;
 
-    if (!title) throw new Error('У одной из групп дополнительных метрик не задано название.');
+    const titleInput = document.querySelector(`input[data-extra-idx="${q.idx}"][data-role="title"]`);
+    const typeSelect = document.querySelector(`select[data-extra-idx="${q.idx}"][data-role="type"]`);
+    const whereWrap = document.querySelector(`div[data-extra-idx="${q.idx}"][data-role="where"]`);
 
+    const title = (titleInput?.value || '').trim();
+    if (!title) throw new Error('У доп.вопроса "' + q.header + '" не задано название метрики.');
+
+    const qtype = typeSelect?.value || 'scale5';
     const where = [];
-    whereWrap?.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    whereWrap.querySelectorAll('input[type="checkbox"]').forEach(cb => {
       if (cb.checked) where.push(cb.value);
     });
 
-    if (!where.length) throw new Error(`У доп.метрики "${title}" не выбрано, куда выводить.`);
+    if (!where.length) throw new Error('У доп.метрики "' + title + '" не выбрано, куда выводить.');
 
-    document.querySelectorAll(`[data-extra-group-item="${groupIndex}"]`).forEach(itemCb => {
-      if (!itemCb.checked) return;
-      extra.push({
-        idx: Number(itemCb.getAttribute('data-extra-idx')),
-        header: itemCb.parentElement?.textContent?.trim() || '',
-        title,
-        type: qtype,
-        where
-      });
-    });
+    extra.push({ idx: q.idx, header: q.header, title, type: qtype, where });
   });
 
   return { std: stdSelected, extra };
@@ -633,14 +656,18 @@ function calcStandardBlocks(rows, config, concepts, header) {
 
   function imageBlock() {
     const res = {};
-    IMAGE_STATEMENT_CONFIG.forEach(item => { res[item.key] = Array(concepts.length).fill(0); });
+    IMAGE_STATEMENT_CONFIG.forEach(item => {
+      res[item.key] = Array(concepts.length).fill(0);
+    });
 
     rows.forEach(r => {
       config.std.image.forEach(({ key, idx }) => {
         const val = String(getCell(r, idx) || '').trim();
         if (!val) return;
+
         const conceptIndex = findConceptIndexByHeader(header[idx], concepts);
         if (conceptIndex === -1) return;
+
         if (res[key]) res[key][conceptIndex]++;
       });
     });
@@ -676,8 +703,8 @@ function calcStandardBlocks(rows, config, concepts, header) {
       const t = normalizeText(k);
       return t.includes('ни одно') || t.includes('ничего из перечисленного') || t.includes('не купил') || t.includes('не рассказал');
     });
-
     if (noneKey) none = counts[noneKey] / n;
+
     return { perConcept, none };
   }
 
@@ -710,71 +737,51 @@ function calcStandardBlocks(rows, config, concepts, header) {
 
 function calcExtraBlocks(rows, config) {
   const n = rows.length;
-  const grouped = {};
+  const result = [];
 
   config.extra.forEach(q => {
-    const key = `${q.title}__${q.type}__${q.where.join('|')}`;
-    if (!grouped[key]) {
-      grouped[key] = { title: q.title, type: q.type, where: q.where, idxs: [] };
-    }
-    grouped[key].idxs.push(q.idx);
-  });
-
-  return Object.values(grouped).map(group => {
-    if (group.type === 'scale5') {
+    if (q.type === 'scale5') {
       const counts = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
-      let totalAnswers = 0;
 
       rows.forEach(r => {
-        group.idxs.forEach(idx => {
-          const v = parseScaleValue(getCell(r, idx));
-          if (v >= 1 && v <= 5) {
-            counts[String(v)]++;
-            totalAnswers++;
-          }
-        });
+        const v = parseScaleValue(getCell(r, q.idx));
+        if (v >= 1 && v <= 5) counts[String(v)]++;
       });
 
-      const denom = totalAnswers || 1;
-
-      return {
+      result.push({
         kind: 'scale5',
-        title: group.title,
-        where: group.where,
+        title: q.title,
+        where: q.where,
         dist: {
-          '1': counts['1'] / denom,
-          '2': counts['2'] / denom,
-          '3': counts['3'] / denom,
-          '4': counts['4'] / denom,
-          '5': counts['5'] / denom,
-          top2: (counts['4'] + counts['5']) / denom
+          '1': counts['1'] / n,
+          '2': counts['2'] / n,
+          '3': counts['3'] / n,
+          '4': counts['4'] / n,
+          '5': counts['5'] / n,
+          top2: (counts['4'] + counts['5']) / n
         }
-      };
-    }
+      });
+    } else {
+      const counts = {};
 
-    const counts = {};
-    let totalAnswers = 0;
-
-    rows.forEach(r => {
-      group.idxs.forEach(idx => {
-        const v = String(getCell(r, idx) || '').trim();
+      rows.forEach(r => {
+        const v = String(getCell(r, q.idx) || '').trim();
         if (!v) return;
         counts[v] = (counts[v] || 0) + 1;
-        totalAnswers++;
       });
-    });
 
-    const denom = totalAnswers || 1;
-
-    return {
-      kind: 'single',
-      title: group.title,
-      where: group.where,
-      dist: Object.entries(counts)
-        .map(([cat, c]) => ({ cat, p: c / denom }))
-        .sort((a, b) => b.p - a.p)
-    };
+      result.push({
+        kind: 'single',
+        title: q.title,
+        where: q.where,
+        dist: Object.entries(counts)
+          .map(([cat, c]) => ({ cat, p: c / n }))
+          .sort((a, b) => b.p - a.p)
+      });
+    }
   });
+
+  return result;
 }
 
 function calcAudience(rows, config) {
@@ -783,6 +790,7 @@ function calcAudience(rows, config) {
   function freq(idx) {
     if (idx == null || idx < 0) return [];
     const counts = {};
+
     rows.forEach(r => {
       const v = String(getCell(r, idx) || '').trim();
       if (!v) return;
@@ -1005,25 +1013,39 @@ function makeSummarySheetStyled(stdRes, concepts, signifRes, extraResults = []) 
     row++;
   });
 
-  const directRows = [
-    ['Нравится больше всего', stdRes.direct.likeMost, signifRes.directMax.likeMost],
-    ['Куплю в первую очередь', stdRes.direct.buyFirst, signifRes.directMax.buyFirst],
-    ['Рассказал(а) бы / поделился(ась) бы в первую очередь', stdRes.direct.shareFirst, signifRes.directMax.shareFirst]
-  ].filter(([, data]) => !!data);
+  const hasDirectLike = !!stdRes.direct.likeMost;
+  const hasDirectBuy = !!stdRes.direct.buyFirst;
+  const hasDirectShare = !!stdRes.direct.shareFirst;
 
-  if (directRows.length) {
+  if (hasDirectLike || hasDirectBuy || hasDirectShare) {
     row++;
     setCell(ws, row, 0, 'Прямое сравнение', STYLES.section);
     mergeRange(ws, row, 0, row, lastCol);
     row++;
 
-    directRows.forEach(([label, data, mask]) => {
-      setCell(ws, row, 0, label, STYLES.label);
-      data.perConcept.forEach((v, i) => {
-        setPercent(ws, row, i + 1, v, mask?.[i] ? STYLES.percentGreen : STYLES.percent);
+    if (hasDirectLike) {
+      setCell(ws, row, 0, 'Нравится больше всего', STYLES.label);
+      stdRes.direct.likeMost.perConcept.forEach((v, i) => {
+        setPercent(ws, row, i + 1, v, signifRes.directMax.likeMost?.[i] ? STYLES.percentGreen : STYLES.percent);
       });
       row++;
-    });
+    }
+
+    if (hasDirectBuy) {
+      setCell(ws, row, 0, 'Куплю в первую очередь', STYLES.label);
+      stdRes.direct.buyFirst.perConcept.forEach((v, i) => {
+        setPercent(ws, row, i + 1, v, signifRes.directMax.buyFirst?.[i] ? STYLES.percentGreen : STYLES.percent);
+      });
+      row++;
+    }
+
+    if (hasDirectShare) {
+      setCell(ws, row, 0, 'Рассказал(а) бы в первую очередь', STYLES.label);
+      stdRes.direct.shareFirst.perConcept.forEach((v, i) => {
+        setPercent(ws, row, i + 1, v, signifRes.directMax.shareFirst?.[i] ? STYLES.percentGreen : STYLES.percent);
+      });
+      row++;
+    }
   }
 
   const imageEntries = Object.entries(stdRes.image || {});
@@ -1058,12 +1080,13 @@ function makeSummarySheetStyled(stdRes, concepts, signifRes, extraResults = []) 
         setCell(ws, row, 0, item.title, STYLES.label);
         setPercent(ws, row, 1, item.dist.top2, STYLES.percent);
         if (lastCol >= 2) mergeRange(ws, row, 1, row, lastCol);
+        row++;
       } else {
         setCell(ws, row, 0, item.title, STYLES.label);
         setCell(ws, row, 1, item.dist.slice(0, 3).map(x => `${x.cat}: ${Math.round(x.p * 100)}%`).join(' | '), STYLES.label);
         if (lastCol >= 1) mergeRange(ws, row, 1, row, lastCol);
+        row++;
       }
-      row++;
     });
   }
 
@@ -1161,36 +1184,45 @@ function makeFullSheetStyled(stdRes, concepts, extraResults = []) {
     });
   }
 
-  const directRows = [
-    ['Нравится больше всего', stdRes.direct.likeMost],
-    ['Куплю в первую очередь', stdRes.direct.buyFirst],
-    ['Рассказал(а) бы / поделился(ась) бы в первую очередь', stdRes.direct.shareFirst]
-  ].filter(([, data]) => !!data);
+  const hasDirectLike = !!stdRes.direct.likeMost;
+  const hasDirectBuy = !!stdRes.direct.buyFirst;
+  const hasDirectShare = !!stdRes.direct.shareFirst;
 
-  if (directRows.length) {
+  if (hasDirectLike || hasDirectBuy || hasDirectShare) {
     setCell(ws, row, 0, 'ПРЯМОЕ СРАВНЕНИЕ', STYLES.section);
-    mergeRange(ws, row, 0, row, directRows.length);
+    mergeRange(ws, row, 0, row, 2);
     row++;
 
     setCell(ws, row, 0, 'Название', STYLES.headerCenter);
-    directRows.forEach(([label], i) => setCell(ws, row, i + 1, label, STYLES.headerCenter));
+    if (hasDirectLike) setCell(ws, row, 1, 'Нравится больше всего', STYLES.headerCenter);
+    if (hasDirectBuy) setCell(ws, row, hasDirectLike ? 2 : 1, 'Куплю в первую очередь', STYLES.headerCenter);
     row++;
 
     concepts.forEach((c, i) => {
       setCell(ws, row, 0, c.label, STYLES.label);
-      directRows.forEach(([, data], colIndex) => {
-        setPercent(ws, row, colIndex + 1, data.perConcept[i] || 0, STYLES.percent);
-      });
+      let col = 1;
+      if (hasDirectLike) {
+        setPercent(ws, row, col, stdRes.direct.likeMost.perConcept[i] || 0, STYLES.percent);
+        col++;
+      }
+      if (hasDirectBuy) {
+        setPercent(ws, row, col, stdRes.direct.buyFirst.perConcept[i] || 0, STYLES.percent);
+      }
       row++;
     });
 
     setCell(ws, row, 0, 'Ни одно из них', STYLES.label);
-    directRows.forEach(([, data], colIndex) => {
-      setPercent(ws, row, colIndex + 1, data.none || 0, STYLES.percent);
-    });
+    let col = 1;
+    if (hasDirectLike) {
+      setPercent(ws, row, col, stdRes.direct.likeMost.none || 0, STYLES.percent);
+      col++;
+    }
+    if (hasDirectBuy) {
+      setPercent(ws, row, col, stdRes.direct.buyFirst.none || 0, STYLES.percent);
+    }
   }
 
-  applySheetRangeRef(ws, row, Math.max(lastCol, directRows.length));
+  applySheetRangeRef(ws, row, Math.max(lastCol, 2));
   return ws;
 }
 
@@ -1277,6 +1309,69 @@ function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, m
     row++;
   }
 
+  const hasDirectLike = !!stdRes.direct.likeMost;
+  const hasDirectBuy = !!stdRes.direct.buyFirst;
+  const hasDirectShare = !!stdRes.direct.shareFirst;
+
+  if (hasDirectLike || hasDirectBuy || hasDirectShare) {
+    setCell(ws, row, startCol, 'ПРЯМОЕ СРАВНЕНИЕ', STYLES.section);
+    mergeRange(ws, row, startCol, row, startCol + 2);
+    row++;
+
+    setCell(ws, row, startCol, 'Название', STYLES.headerCenter);
+    if (hasDirectLike) setCell(ws, row, startCol + 1, 'Нравится больше всего', STYLES.headerCenter);
+    if (hasDirectBuy) setCell(ws, row, startCol + (hasDirectLike ? 2 : 1), 'Куплю в первую очередь', STYLES.headerCenter);
+    row++;
+
+    concepts.forEach((c, i) => {
+      setCell(ws, row, startCol, c.label, STYLES.label);
+
+      if (mode === 'green') {
+        let col = startCol + 1;
+        if (hasDirectLike) {
+          setPercent(ws, row, col, stdRes.direct.likeMost.perConcept[i] || 0, signifRes.directMax.likeMost?.[i] ? STYLES.percentGreen : STYLES.percent);
+          col++;
+        }
+        if (hasDirectBuy) {
+          setPercent(ws, row, col, stdRes.direct.buyFirst.perConcept[i] || 0, signifRes.directMax.buyFirst?.[i] ? STYLES.percentGreen : STYLES.percent);
+        }
+      } else {
+        let col = startCol + 1;
+        if (hasDirectLike) {
+          setCell(ws, row, col, Math.round((stdRes.direct.likeMost.perConcept[i] || 0) * 100) + '%', STYLES.percent);
+          col++;
+        }
+        if (hasDirectBuy) {
+          setCell(ws, row, col, Math.round((stdRes.direct.buyFirst.perConcept[i] || 0) * 100) + '%', STYLES.percent);
+        }
+      }
+
+      row++;
+    });
+
+    setCell(ws, row, startCol, 'Ни одно из них', STYLES.label);
+    if (mode === 'green') {
+      let col = startCol + 1;
+      if (hasDirectLike) {
+        setPercent(ws, row, col, stdRes.direct.likeMost.none || 0, STYLES.percent);
+        col++;
+      }
+      if (hasDirectBuy) {
+        setPercent(ws, row, col, stdRes.direct.buyFirst.none || 0, STYLES.percent);
+      }
+    } else {
+      let col = startCol + 1;
+      if (hasDirectLike) {
+        setCell(ws, row, col, Math.round((stdRes.direct.likeMost.none || 0) * 100) + '%', STYLES.percent);
+        col++;
+      }
+      if (hasDirectBuy) {
+        setCell(ws, row, col, Math.round((stdRes.direct.buyFirst.none || 0) * 100) + '%', STYLES.percent);
+      }
+    }
+    row++;
+  }
+
   return { endRow: row, endCol: lastCol };
 }
 
@@ -1354,93 +1449,4 @@ function writeAudienceBlock(ws, startRow, sectionTitle, blocks) {
   });
 
   return row;
-}
-
-if (typeof XLSX !== 'object') {
-  status('Ошибка: библиотека XLSX не загружена. Попробуйте обновить страницу.', false, true);
-} else if (!baseInput) {
-  status('Ошибка: на странице не найден input с id="baseFile".', false, true);
-} else {
-  baseInput.addEventListener('click', () => {
-    baseInput.value = '';
-  });
-
-  baseInput.addEventListener('change', async e => {
-    baseFile = e.target.files[0] || null;
-    resetState();
-
-    if (!baseFile) {
-      status('Файл не выбран');
-      return;
-    }
-
-    status('Читаю базу...\nЭто может занять до минуты.');
-
-    try {
-      const arrayBuffer = await baseFile.arrayBuffer();
-      const wb = XLSX.read(arrayBuffer, { type: 'array' });
-      const sheetName = wb.SheetNames[wb.SheetNames.length - 1];
-      const sheet = wb.Sheets[sheetName];
-      const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-
-      const { header, rows } = splitHeaderRows(data);
-      parsed = { header, rows };
-      autoMapping = autoDetectMapping(header);
-
-      renderStandardMappingUI(autoMapping, header);
-      renderImageStatementsUI(autoMapping, header);
-      renderExtraQuestionsUI(autoMapping);
-
-      mappingSection?.classList.remove('hidden');
-      imageSection?.classList.remove('hidden');
-      extraSection?.classList.remove('hidden');
-      runSection?.classList.remove('hidden');
-
-      status('База загружена. Проверьте найденные блоки и нажмите «Посчитать topline».', true);
-    } catch (e) {
-      console.error(e);
-      status('Ошибка при чтении файла: ' + (e && e.message ? e.message : String(e)), false, true);
-    }
-  });
-
-  runBtn?.addEventListener('click', () => {
-    if (!parsed || !autoMapping) {
-      status('Сначала загрузите файл и дождитесь определения вопросов.', false, true);
-      return;
-    }
-
-    try {
-      userConfig = collectUserConfig(autoMapping);
-    } catch (e) {
-      status('Нужно завершить настройку вопросов: ' + e.message, false, true);
-      return;
-    }
-
-    try {
-      runBtn.disabled = true;
-      status('Считаю topline...\nПодождите, формируется Excel.');
-
-      const { header, rows } = parsed;
-      const concepts = inferConcepts(header, userConfig);
-      const stdResults = calcStandardBlocks(rows, userConfig, concepts, header);
-      const extraResults = calcExtraBlocks(rows, userConfig);
-      const audienceRes = calcAudience(rows, userConfig);
-      const signifRes = calcSignificance(stdResults, concepts, rows.length);
-
-      const outWb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(outWb, makeSummarySheetStyled(stdResults, concepts, signifRes, extraResults), 'САММАРИ');
-      XLSX.utils.book_append_sheet(outWb, makeFullSheetStyled(stdResults, concepts, extraResults), 'полные таблицы');
-      XLSX.utils.book_append_sheet(outWb, makeSignifSheetStyled(stdResults, concepts, signifRes), 'значимости');
-      XLSX.utils.book_append_sheet(outWb, makeAudienceSheetStyled(audienceRes), 'Аудитория');
-
-      const outName = 'Topline_' + (baseFile.name.replace(/\.[^.]+$/, '') || 'output') + '.xlsx';
-      XLSX.writeFile(outWb, outName);
-      status('Готово. Файл ' + outName + ' сохранён.', true);
-    } catch (e) {
-      console.error(e);
-      status('Ошибка при расчете: ' + (e && e.message ? e.message : String(e)), false, true);
-    } finally {
-      runBtn.disabled = false;
-    }
-  });
 }
