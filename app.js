@@ -1,5 +1,4 @@
 // app.js
-
 const baseInput = document.getElementById('baseFile');
 const statusEl = document.getElementById('status');
 const mappingSection = document.getElementById('mappingSection');
@@ -13,6 +12,7 @@ let baseFile;
 let parsed = null;
 let autoMapping = null;
 let userConfig = null;
+
 function debugLine(...parts) {
   const msg = parts.map(x => {
     if (typeof x === 'string') return x;
@@ -26,6 +26,7 @@ function debugLine(...parts) {
     statusEl.textContent = prev ? (prev + '\n[DEBUG] ' + msg) : ('[DEBUG] ' + msg);
   }
 }
+
 if (typeof XLSX !== 'object') {
   if (statusEl) {
     statusEl.textContent = 'Ошибка: библиотека XLSX не загружена. Попробуйте обновить страницу.';
@@ -37,76 +38,86 @@ if (typeof XLSX !== 'object') {
     statusEl.className = 'status error';
   }
 } else {
-baseInput.addEventListener('change', async e => {
-  debugLine('change fired');
+  baseInput.addEventListener('click', () => {
+    baseInput.value = '';
+  });
 
-  baseFile = e.target.files[0] || null;
-  debugLine('baseFile =', baseFile ? { name: baseFile.name, size: baseFile.size, type: baseFile.type } : null);
+  baseInput.addEventListener('change', async e => {
+    debugLine('change fired');
 
-  resetState();
-  debugLine('resetState done');
+    baseFile = e.target.files[0] || null;
+    debugLine('baseFile =', baseFile ? { name: baseFile.name, size: baseFile.size, type: baseFile.type } : null);
 
-  if (!baseFile) {
-    status('Файл не выбран');
-    debugLine('no file selected');
-    return;
-  }
+    resetState();
+    debugLine('resetState done');
 
-  status('Читаю базу...\nЭто может занять до минуты.');
-  debugLine('starting read');
+    if (!baseFile) {
+      status('Файл не выбран');
+      debugLine('no file selected');
+      return;
+    }
 
-  try {
-    const arrayBuffer = await baseFile.arrayBuffer();
-    debugLine('arrayBuffer ok, bytes =', arrayBuffer.byteLength);
+    status('Читаю базу...\nЭто может занять до минуты.');
+    debugLine('starting read');
 
-    const wb = XLSX.read(arrayBuffer, { type: 'array' });
-    debugLine('xlsx read ok, sheets =', wb.SheetNames);
+    try {
+      const arrayBuffer = await baseFile.arrayBuffer();
+      debugLine('arrayBuffer ok, bytes =', arrayBuffer.byteLength);
 
-    const sheetName = wb.SheetNames[wb.SheetNames.length - 1];
-    debugLine('selected sheet =', sheetName);
+      const wb = XLSX.read(arrayBuffer, { type: 'array' });
+      debugLine('xlsx read ok, sheets =', wb.SheetNames);
 
-    const sheet = wb.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-    debugLine('sheet_to_json ok, rows =', data.length);
+      const sheetName = wb.SheetNames[wb.SheetNames.length - 1];
+      debugLine('selected sheet =', sheetName);
 
-    const { header, rows } = splitHeaderRows(data);
-    debugLine('splitHeaderRows ok, header len =', header.length, 'rows len =', rows.length);
-    debugLine('header sample =', header.slice(0, 8));
+      const sheet = wb.Sheets[sheetName];
+      const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+      debugLine('sheet_to_json ok, rows =', data.length);
 
-    parsed = { header, rows };
-    debugLine('parsed assigned');
+      const { header, rows } = splitHeaderRows(data);
+      debugLine('splitHeaderRows ok, header len = ' + header.length + ', rows len = ' + rows.length);
+      debugLine('header sample = ' + JSON.stringify(header.slice(0, 8)));
 
-    autoMapping = autoDetectMapping(header);
-    debugLine('autoDetectMapping ok', {
-      like: autoMapping.std.like.length,
-      fitDish: autoMapping.std.fitDish.length,
-      fitBrand: autoMapping.std.fitBrand.length,
-      visitBK: autoMapping.std.visitBK.length,
-      buyDish: autoMapping.std.buyDish.length,
-      image: autoMapping.std.image.length,
-      directLike: autoMapping.std.directLike.length,
-      directBuy: autoMapping.std.directBuy.length,
-      extraCandidates: autoMapping.extraCandidates.length
-    });
+      parsed = { header, rows };
+      debugLine('parsed assigned');
 
-    renderStandardMappingUI(autoMapping, header);
-    debugLine('renderStandardMappingUI ok');
+      autoMapping = autoDetectMapping(header);
+      debugLine('autoDetectMapping ok = ' + JSON.stringify({
+        like: autoMapping.std.like.length,
+        fitDish: autoMapping.std.fitDish.length,
+        fitBrand: autoMapping.std.fitBrand.length,
+        visitBK: autoMapping.std.visitBK.length,
+        buyDish: autoMapping.std.buyDish.length,
+        image: autoMapping.std.image.length,
+        directLike: autoMapping.std.directLike.length,
+        directBuy: autoMapping.std.directBuy.length,
+        extraCandidates: autoMapping.extraCandidates.length
+      }));
 
-    renderExtraQuestionsUI(autoMapping, header);
-    debugLine('renderExtraQuestionsUI ok');
+      debugLine('matched like headers = ' + JSON.stringify(autoMapping.std.like.map(i => header[i]).slice(0, 5)));
+      debugLine('matched fitDish headers = ' + JSON.stringify(autoMapping.std.fitDish.map(i => header[i]).slice(0, 5)));
+      debugLine('matched fitBrand headers = ' + JSON.stringify(autoMapping.std.fitBrand.map(i => header[i]).slice(0, 5)));
+      debugLine('matched buyDish headers = ' + JSON.stringify(autoMapping.std.buyDish.map(i => header[i]).slice(0, 5)));
+      debugLine('matched extra headers = ' + JSON.stringify(autoMapping.extraCandidates.map(x => x.header).slice(0, 10)));
 
-    if (mappingSection) mappingSection.style.display = '';
-    if (extraSection) extraSection.style.display = '';
-    if (runSection) runSection.style.display = '';
-    debugLine('sections shown');
+      renderStandardMappingUI(autoMapping, header);
+      debugLine('renderStandardMappingUI ok');
 
-    status('База загружена. Проверьте найденные вопросы и доп.метрики, затем нажмите «Посчитать топлайн».', true);
-  } catch (e) {
-    console.error(e);
-    debugLine('READ ERROR =', e && e.message ? e.message : String(e));
-    status('Ошибка при чтении файла: ' + (e && e.message ? e.message : String(e)), false, true);
-  }
-});
+      renderExtraQuestionsUI(autoMapping, header);
+      debugLine('renderExtraQuestionsUI ok');
+
+      if (mappingSection) mappingSection.style.display = '';
+      if (extraSection) extraSection.style.display = '';
+      if (runSection) runSection.style.display = '';
+      debugLine('sections shown');
+
+      status('База загружена. Проверьте найденные вопросы и доп.метрики, затем нажмите «Посчитать топлайн».', true);
+    } catch (e) {
+      console.error(e);
+      debugLine('READ ERROR =', e && e.message ? e.message : String(e));
+      status('Ошибка при чтении файла: ' + (e && e.message ? e.message : String(e)), false, true);
+    }
+  });
 
   runBtn.addEventListener('click', () => {
     if (!parsed || !autoMapping) {
@@ -127,14 +138,12 @@ baseInput.addEventListener('change', async e => {
 
       const { header, rows } = parsed;
       const concepts = inferConcepts(header, userConfig);
-
       const stdResults = calcStandardBlocks(rows, userConfig, concepts, header);
       const extraResults = calcExtraBlocks(rows, userConfig);
       const audienceRes = calcAudience(rows, userConfig);
       const signifRes = calcSignificance(stdResults, concepts, rows.length);
 
       const outWb = XLSX.utils.book_new();
-
       XLSX.utils.book_append_sheet(outWb, makeSummarySheetStyled(stdResults, concepts, signifRes), 'САММАРИ');
       XLSX.utils.book_append_sheet(outWb, makeFullSheetStyled(stdResults, concepts), 'полные таблицы');
       XLSX.utils.book_append_sheet(outWb, makeSignifSheetStyled(stdResToSignifInput(stdResults), concepts, signifRes), 'значимости');
@@ -142,7 +151,6 @@ baseInput.addEventListener('change', async e => {
 
       const outName = 'Topline_' + (baseFile.name.replace(/\.[^.]+$/, '') || 'output') + '.xlsx';
       XLSX.writeFile(outWb, outName);
-
       status('Готово. Файл ' + outName + ' сохранён.', true);
     } catch (e) {
       console.error(e);
@@ -175,8 +183,10 @@ function status(text, ok = false, isError = false) {
 function splitHeaderRows(data) {
   if (!data || data.length < 2) return { header: [], rows: [] };
 
-  const varNames = (data[0] || []).map(v => String(v || '').trim());
-  const questionTexts = (data[1] || []).map(v => String(v || '').trim());
+  // ВАЖНО: в этой версии считаем, что текст вопроса находится в ПЕРВОЙ строке
+  const questionTexts = (data[0] || []).map(v => String(v || '').trim());
+  const varNames = (data[1] || []).map(v => String(v || '').trim());
+
   const header = questionTexts.map((txt, i) => txt || varNames[i] || `col_${i}`);
   const rows = data.slice(2).filter(r => r && r.some(v => v !== null && v !== ''));
 
@@ -193,28 +203,28 @@ function autoDetectMapping(header) {
     image: [],
     directLike: [],
     directBuy: [],
-    audience: {
-      sex: null,
-      age: null,
-      freqNew: null,
-      freqProd: null,
-      freqBK: null
-    }
+    audience: { sex: null, age: null, freqNew: null, freqProd: null, freqBK: null }
   };
 
   header.forEach((h, idx) => {
+    if (!h) return;
+
     if (h.includes('Оцените, пожалуйста, насколько вам нравится или не нравится каждое из этих названий')) {
       std.like.push(idx);
     }
+
     if (h.includes('Насколько каждое из этих названий') && h.includes('подходит или не подходит для этого')) {
       std.fitDish.push(idx);
     }
+
     if (h.includes('А теперь оцените, насколько каждое из этих названий подходит или не подходит для бренда Бургер Кинг')) {
       std.fitBrand.push(idx);
     }
+
     if (h.includes('Скажите, насколько вероятно, что Вы посетите ресторан Бургер Кинг')) {
       std.visitBK.push(idx);
     }
+
     if (h.includes('Для каждого названия укажите, насколько вероятно, что Вы купите')) {
       std.buyDish.push(idx);
     }
@@ -240,20 +250,32 @@ function autoDetectMapping(header) {
   });
 
   const used = new Set([
-    ...std.like, ...std.fitDish, ...std.fitBrand, ...std.visitBK, ...std.buyDish,
-    ...std.image.map(x => x.idx), ...std.directLike, ...std.directBuy,
-    std.audience.sex, std.audience.age, std.audience.freqNew, std.audience.freqProd, std.audience.freqBK
+    ...std.like,
+    ...std.fitDish,
+    ...std.fitBrand,
+    ...std.visitBK,
+    ...std.buyDish,
+    ...std.image.map(x => x.idx),
+    ...std.directLike,
+    ...std.directBuy,
+    std.audience.sex,
+    std.audience.age,
+    std.audience.freqNew,
+    std.audience.freqProd,
+    std.audience.freqBK
   ].filter(v => v !== null && v !== undefined));
 
   const extraCandidates = header.map((h, idx) => {
     if (used.has(idx)) return null;
     if (!h) return null;
+
     const lower = h.toLowerCase();
     const looksClosed =
       lower.includes('насколько') ||
       lower.includes('оцените') ||
       lower.includes('выберите') ||
       lower.includes('какое из перечисленных');
+
     if (!looksClosed) return null;
     return { idx, header: h };
   }).filter(Boolean);
@@ -288,24 +310,22 @@ function renderStandardMappingUI(mapping, header) {
     if (!group.indexes.length) {
       const empty = document.createElement('div');
       empty.className = 'mapping-item';
-      empty.innerHTML = '<small>Колонки не найдены по ключевым словам</small>';
+      empty.innerHTML = 'Колонки не найдены по ключевым словам';
       list.appendChild(empty);
     } else {
       group.indexes.forEach(idx => {
         const item = document.createElement('div');
         item.className = 'mapping-item';
         const id = `std-${group.key}-${idx}`;
-
         let stdKey = group.key;
+
         if (group.key === 'directCompare') {
           stdKey = mapping.std.directLike.includes(idx) ? 'directLike' : 'directBuy';
         }
 
         item.innerHTML = `
           <input type="checkbox" id="${id}" data-std-key="${stdKey}" data-col-idx="${idx}" checked>
-          <label for="${id}">
-            <small>${header[idx]}</small>
-          </label>
+          <label for="${id}"><small>${header[idx]}</small></label>
         `;
         list.appendChild(item);
       });
@@ -453,8 +473,15 @@ function parseScaleValue(v) {
 
 function findConceptIndexByHeader(headerText, concepts) {
   const text = String(headerText || '').trim();
-  for (let i = 0; i < concepts.length; i++) if (text.endsWith(concepts[i].label)) return i;
-  for (let i = 0; i < concepts.length; i++) if (text.includes(concepts[i].label)) return i;
+
+  for (let i = 0; i < concepts.length; i++) {
+    if (text.endsWith(concepts[i].label)) return i;
+  }
+
+  for (let i = 0; i < concepts.length; i++) {
+    if (text.includes(concepts[i].label)) return i;
+  }
+
   return -1;
 }
 
@@ -463,6 +490,7 @@ function calcStandardBlocks(rows, config, concepts, header) {
 
   function top2ByCols(cols) {
     const res = Array(concepts.length).fill(0);
+
     rows.forEach(r => {
       cols.forEach((col, i) => {
         if (i >= concepts.length) return;
@@ -470,11 +498,13 @@ function calcStandardBlocks(rows, config, concepts, header) {
         if (v === 4 || v === 5) res[i]++;
       });
     });
+
     return res.map(v => v / n);
   }
 
   function dist5(cols) {
-    const arr = Array.from({ length: concepts.length }, () => ({ '1':0, '2':0, '3':0, '4':0, '5':0 }));
+    const arr = Array.from({ length: concepts.length }, () => ({ '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 }));
+
     rows.forEach(r => {
       cols.forEach((col, i) => {
         if (i >= concepts.length) return;
@@ -482,6 +512,7 @@ function calcStandardBlocks(rows, config, concepts, header) {
         if (v >= 1 && v <= 5) arr[i][String(v)]++;
       });
     });
+
     return arr.map(d => ({
       '1': d['1'] / n,
       '2': d['2'] / n,
@@ -506,14 +537,16 @@ function calcStandardBlocks(rows, config, concepts, header) {
     ];
 
     const res = {};
-    names.forEach(nm => res[nm] = Array(concepts.length).fill(0));
+    names.forEach(nm => { res[nm] = Array(concepts.length).fill(0); });
 
     rows.forEach(r => {
       config.std.image.forEach(({ key, idx }) => {
         const val = String(getCell(r, idx) || '').trim();
         if (!val) return;
+
         const conceptIndex = findConceptIndexByHeader(header[idx], concepts);
         if (conceptIndex === -1) return;
+
         if (res[key]) res[key][conceptIndex]++;
       });
     });
@@ -527,6 +560,7 @@ function calcStandardBlocks(rows, config, concepts, header) {
 
   function directSingle(cols) {
     const counts = {};
+
     cols.forEach(idx => {
       rows.forEach(r => {
         const v = String(getCell(r, idx) || '').trim();
@@ -579,7 +613,8 @@ function calcExtraBlocks(rows, config) {
 
   config.extra.forEach(q => {
     if (q.type === 'scale5') {
-      const counts = { '1':0, '2':0, '3':0, '4':0, '5':0 };
+      const counts = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
+
       rows.forEach(r => {
         const v = parseScaleValue(getCell(r, q.idx));
         if (v >= 1 && v <= 5) counts[String(v)]++;
@@ -600,6 +635,7 @@ function calcExtraBlocks(rows, config) {
       });
     } else {
       const counts = {};
+
       rows.forEach(r => {
         const v = String(getCell(r, q.idx) || '').trim();
         if (!v) return;
@@ -626,11 +662,13 @@ function calcAudience(rows, config) {
   function freq(idx) {
     if (idx == null || idx < 0) return [];
     const counts = {};
+
     rows.forEach(r => {
       const v = String(getCell(r, idx) || '').trim();
       if (!v) return;
       counts[v] = (counts[v] || 0) + 1;
     });
+
     return Object.entries(counts)
       .map(([label, c]) => ({ label, p: c / n }))
       .sort((a, b) => b.p - a.p);
@@ -655,12 +693,7 @@ function zTest(p1, p2, n1, n2) {
 
 function calcSignificance(stdRes, concepts, n) {
   const alphaZ = 1.96;
-  const signif = {
-    top2: {},
-    scales: {},
-    image: {},
-    directMax: {}
-  };
+  const signif = { top2: {}, scales: {}, image: {}, directMax: {} };
 
   function labelsFor(arr) {
     return arr.map((p, i) => {
@@ -714,7 +747,7 @@ function setCell(ws, r, c, value, style = null) {
   return ws[cellRef(r, c)];
 }
 
-function ensureCell(ws, r, c, value = '') {
+function ensureCell(ws, r, c, value) {
   const ref = cellRef(r, c);
   if (!ws[ref]) ws[ref] = { t: typeof value === 'number' ? 'n' : 's', v: value };
   return ws[ref];
@@ -728,17 +761,11 @@ function setPercent(ws, r, c, value, style) {
 
 function mergeRange(ws, sRow, sCol, eRow, eCol) {
   if (!ws['!merges']) ws['!merges'] = [];
-  ws['!merges'].push({
-    s: { r: sRow, c: sCol },
-    e: { r: eRow, c: eCol }
-  });
+  ws['!merges'].push({ s: { r: sRow, c: sCol }, e: { r: eRow, c: eCol } });
 }
 
 function applySheetRangeRef(ws, endRow, endCol) {
-  ws['!ref'] = XLSX.utils.encode_range({
-    s: { r: 0, c: 0 },
-    e: { r: endRow, c: endCol }
-  });
+  ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: endRow, c: endCol } });
 }
 
 function borderAll() {
@@ -755,82 +782,20 @@ function hexFill(rgb) {
 }
 
 const STYLES = {
-  title: {
-    font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 14 },
-    fill: hexFill('244C73'),
-    alignment: { horizontal: 'left', vertical: 'center' },
-    border: borderAll()
-  },
-  section: {
-    font: { bold: true, color: { rgb: 'FFFFFF' } },
-    fill: hexFill('244C73'),
-    alignment: { horizontal: 'left', vertical: 'center' },
-    border: borderAll()
-  },
-  blockTitle: {
-    font: { bold: true, color: { rgb: 'FFFFFF' } },
-    fill: hexFill('5E86B4'),
-    alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
-    border: borderAll()
-  },
-  headerCenter: {
-    font: { bold: true, color: { rgb: 'FFFFFF' } },
-    fill: hexFill('244C73'),
-    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-    border: borderAll()
-  },
-  base: {
-    font: { italic: true, color: { rgb: '333333' } },
-    fill: hexFill('D9D9D9'),
-    alignment: { horizontal: 'left', vertical: 'center' },
-    border: borderAll()
-  },
-  label: {
-    alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
-    border: borderAll()
-  },
-  top2Label: {
-    font: { bold: true },
-    fill: hexFill('DCE6F1'),
-    alignment: { horizontal: 'left', vertical: 'center' },
-    border: borderAll()
-  },
-  top2Row: {
-    font: { bold: true },
-    fill: hexFill('DCE6F1'),
-    alignment: { horizontal: 'center', vertical: 'center' },
-    border: borderAll()
-  },
-  percent: {
-    alignment: { horizontal: 'center', vertical: 'center' },
-    border: borderAll()
-  },
-  percentGreen: {
-    alignment: { horizontal: 'center', vertical: 'center' },
-    fill: hexFill('70AD47'),
-    border: borderAll()
-  },
-  signifTextGreen: {
-    font: { bold: true, color: { rgb: '000000' } },
-    alignment: { horizontal: 'center', vertical: 'center' },
-    fill: hexFill('70AD47'),
-    border: borderAll()
-  },
-  legendGreen: {
-    alignment: { horizontal: 'center', vertical: 'center' },
-    fill: hexFill('92D050'),
-    border: borderAll()
-  },
-  legendAccent: {
-    font: { bold: true, color: { rgb: 'C55A11' } },
-    alignment: { horizontal: 'center', vertical: 'center' },
-    fill: hexFill('FFF2CC'),
-    border: borderAll()
-  },
-  legendText: {
-    alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
-    border: borderAll()
-  }
+  title: { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 14 }, fill: hexFill('244C73'), alignment: { horizontal: 'left', vertical: 'center' }, border: borderAll() },
+  section: { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: hexFill('244C73'), alignment: { horizontal: 'left', vertical: 'center' }, border: borderAll() },
+  blockTitle: { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: hexFill('5E86B4'), alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: borderAll() },
+  headerCenter: { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: hexFill('244C73'), alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: borderAll() },
+  base: { font: { italic: true, color: { rgb: '333333' } }, fill: hexFill('D9D9D9'), alignment: { horizontal: 'left', vertical: 'center' }, border: borderAll() },
+  label: { alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: borderAll() },
+  top2Label: { font: { bold: true }, fill: hexFill('DCE6F1'), alignment: { horizontal: 'left', vertical: 'center' }, border: borderAll() },
+  top2Row: { font: { bold: true }, fill: hexFill('DCE6F1'), alignment: { horizontal: 'center', vertical: 'center' }, border: borderAll() },
+  percent: { alignment: { horizontal: 'center', vertical: 'center' }, border: borderAll() },
+  percentGreen: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('70AD47'), border: borderAll() },
+  signifTextGreen: { font: { bold: true, color: { rgb: '000000' } }, alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('70AD47'), border: borderAll() },
+  legendGreen: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('92D050'), border: borderAll() },
+  legendAccent: { font: { bold: true, color: { rgb: 'C55A11' } }, alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('FFF2CC'), border: borderAll() },
+  legendText: { alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: borderAll() }
 };
 
 function isStrong2Plus(arr, index) {
@@ -860,6 +825,7 @@ function scaleLabelsForBlock(key) {
 function blockValueRows(stdRes, key) {
   const distArr = stdRes.scales[key];
   const labels = scaleLabelsForBlock(key);
+
   return [
     ['ТОП-2 (сумма 4+5)', distArr.map(d => d.top2), 'top2'],
     [labels[0], distArr.map(d => d['1']), '1'],
@@ -873,10 +839,10 @@ function blockValueRows(stdRes, key) {
 function makeSummarySheetStyled(stdRes, concepts, signifRes) {
   const ws = {};
   const lastCol = concepts.length;
-
   ws['!cols'] = [{ wch: 42 }, ...Array.from({ length: concepts.length }, () => ({ wch: 15 }))];
 
   let row = 0;
+
   setCell(ws, row, 0, 'САММАРИ: ТОП-2 (сумма оценок 4 и 5)', STYLES.title);
   mergeRange(ws, row, 0, row, lastCol);
   row++;
@@ -956,10 +922,10 @@ function makeSummarySheetStyled(stdRes, concepts, signifRes) {
 function makeFullSheetStyled(stdRes, concepts) {
   const ws = {};
   const lastCol = concepts.length;
-
   ws['!cols'] = [{ wch: 46 }, ...Array.from({ length: concepts.length }, () => ({ wch: 15 }))];
 
   let row = 0;
+
   setCell(ws, row, 0, 'ПОЛНЫЕ ДАННЫЕ ПО ВСЕМ ВОПРОСАМ', STYLES.title);
   mergeRange(ws, row, 0, row, lastCol);
   row++;
@@ -979,13 +945,14 @@ function makeFullSheetStyled(stdRes, concepts) {
 
     blockValueRows(stdRes, key).forEach(([label, vals, level]) => {
       setCell(ws, row, 0, label, level === 'top2' ? STYLES.top2Label : STYLES.label);
-      vals.forEach((v, i) => setPercent(ws, row, i + 1, v, level === 'top2' ? STYLES.top2Row : STYLES.percent));
+      vals.forEach((v, i) => {
+        setPercent(ws, row, i + 1, v, level === 'top2' ? STYLES.top2Row : STYLES.percent);
+      });
       row++;
     });
-
-    row++;
   });
 
+  row++;
   setCell(ws, row, 0, 'ИМИДЖЕВЫЙ БЛОК', STYLES.section);
   mergeRange(ws, row, 0, row, lastCol);
   row++;
@@ -1069,17 +1036,18 @@ function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, m
           setPercent(ws, row, startCol + 1 + i, v, style);
         } else {
           const letters = signifRes.scales[key][level][i];
-          const style = letters && letters.length ? STYLES.signifTextGreen : (level === 'top2' ? STYLES.top2Row : STYLES.percent);
+          const style = letters && letters.length
+            ? STYLES.signifTextGreen
+            : (level === 'top2' ? STYLES.top2Row : STYLES.percent);
           setCell(ws, row, startCol + 1 + i, signifCellText(v, letters), style);
         }
       });
 
       row++;
     });
-
-    row++;
   });
 
+  row++;
   setCell(ws, row, startCol, 'ИМИДЖЕВЫЙ БЛОК', STYLES.section);
   mergeRange(ws, row, startCol, row, lastCol);
   row++;
@@ -1088,22 +1056,10 @@ function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, m
     setCell(ws, row, startCol, label, STYLES.label);
     vals.forEach((v, i) => {
       if (mode === 'green') {
-        setPercent(
-          ws,
-          row,
-          startCol + 1 + i,
-          v,
-          isStrong2Plus(signifRes.image[label], i) ? STYLES.percentGreen : STYLES.percent
-        );
+        setPercent(ws, row, startCol + 1 + i, v, isStrong2Plus(signifRes.image[label], i) ? STYLES.percentGreen : STYLES.percent);
       } else {
         const letters = signifRes.image[label][i];
-        setCell(
-          ws,
-          row,
-          startCol + 1 + i,
-          signifCellText(v, letters),
-          letters && letters.length ? STYLES.signifTextGreen : STYLES.percent
-        );
+        setCell(ws, row, startCol + 1 + i, signifCellText(v, letters), letters && letters.length ? STYLES.signifTextGreen : STYLES.percent);
       }
     });
     row++;
@@ -1121,6 +1077,7 @@ function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, m
 
   concepts.forEach((c, i) => {
     setCell(ws, row, startCol, c.label, STYLES.label);
+
     if (mode === 'green') {
       setPercent(ws, row, startCol + 1, stdRes.direct.likeMost.perConcept[i] || 0, signifRes.directMax.likeMost[i] ? STYLES.percentGreen : STYLES.percent);
       setPercent(ws, row, startCol + 2, stdRes.direct.buyFirst.perConcept[i] || 0, signifRes.directMax.buyFirst[i] ? STYLES.percentGreen : STYLES.percent);
@@ -1128,6 +1085,7 @@ function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, m
       setCell(ws, row, startCol + 1, Math.round((stdRes.direct.likeMost.perConcept[i] || 0) * 100) + '%', STYLES.percent);
       setCell(ws, row, startCol + 2, Math.round((stdRes.direct.buyFirst.perConcept[i] || 0) * 100) + '%', STYLES.percent);
     }
+
     row++;
   });
 
@@ -1181,8 +1139,8 @@ function makeAudienceSheetStyled(audienceRes) {
   ]);
 
   row = writeAudienceBlock(ws, row, 'АУДИТОРИЯ И ПОВЕДЕНИЕ', [
-    { title: 'Частота взятия новинок (горячие напитки)', rows: audienceRes.freqNew },
-    { title: 'Частота покупки капучино', rows: audienceRes.freqProd },
+    { title: 'Частота взятия новинок', rows: audienceRes.freqNew },
+    { title: 'Частота покупки продукта', rows: audienceRes.freqProd },
     { title: 'Частота посещения Бургер Кинг', rows: audienceRes.freqBK }
   ]);
 
