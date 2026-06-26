@@ -1,5 +1,3 @@
-// app.js
-
 const baseInput = document.getElementById('baseFile');
 const statusEl = document.getElementById('status');
 const mappingSection = document.getElementById('mappingSection');
@@ -39,26 +37,22 @@ if (typeof XLSX !== 'object') {
     try {
       const arrayBuffer = await baseFile.arrayBuffer();
       const wb = XLSX.read(arrayBuffer, { type: 'array' });
-
       const sheetName = wb.SheetNames[wb.SheetNames.length - 1];
       const sheet = wb.Sheets[sheetName];
       const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-
       const { header, rows } = splitHeaderRows(data);
-      parsed = { header, rows };
 
+      parsed = { header, rows };
       autoMapping = autoDetectMapping(header);
+
       renderStandardMappingUI(autoMapping, header);
       renderExtraQuestionsUI(autoMapping, header);
 
-      mappingSection.style.display = '';
-      extraSection.style.display = '';
-      runSection.style.display = '';
+      if (mappingSection) mappingSection.style.display = '';
+      if (extraSection) extraSection.style.display = '';
+      if (runSection) runSection.style.display = '';
 
-      status(
-        'База загружена. Проверьте найденные вопросы и доп.метрики, затем нажмите «Посчитать топлайн».',
-        true
-      );
+      status('База загружена. Проверьте найденные вопросы и доп.метрики, затем нажмите «Посчитать топлайн».', true);
     } catch (e) {
       console.error(e);
       status('Ошибка при чтении файла: ' + (e && e.message ? e.message : String(e)), false, true);
@@ -84,22 +78,19 @@ if (typeof XLSX !== 'object') {
 
       const { header, rows } = parsed;
       const concepts = inferConcepts(header, userConfig);
-
       const stdResults = calcStandardBlocks(rows, userConfig, concepts, header);
       const extraResults = calcExtraBlocks(rows, userConfig);
       const audienceRes = calcAudience(rows, userConfig);
       const signifRes = calcSignificance(stdResults, concepts, rows.length);
 
       const outWb = XLSX.utils.book_new();
-
-      XLSX.utils.book_append_sheet(outWb, makeSummarySheetStyled(stdResults, concepts, signifRes), 'САММАРИ');
-      XLSX.utils.book_append_sheet(outWb, makeFullSheetStyled(stdResults, concepts), 'полные таблицы');
+      XLSX.utils.book_append_sheet(outWb, makeSummarySheetStyled(stdResults, concepts, signifRes, extraResults), 'САММАРИ');
+      XLSX.utils.book_append_sheet(outWb, makeFullSheetStyled(stdResults, concepts, extraResults), 'полные таблицы');
       XLSX.utils.book_append_sheet(outWb, makeSignifSheetStyled(stdResults, concepts, signifRes), 'значимости');
       XLSX.utils.book_append_sheet(outWb, makeAudienceSheetStyled(audienceRes), 'Аудитория');
 
       const outName = 'Topline_' + (baseFile.name.replace(/\.[^.]+$/, '') || 'output') + '.xlsx';
       XLSX.writeFile(outWb, outName);
-
       status('Готово. Файл ' + outName + ' сохранён.', true);
     } catch (e) {
       console.error(e);
@@ -144,272 +135,86 @@ function normalizeText(s) {
   return String(s || '')
     .toLowerCase()
     .replace(/ё/g, 'е')
-    .replace(/[«»"]/g, '')
+    .replace(/[«»"']/g, '')
+    .replace(/&quot;/g, '')
+    .replace(/[–—]/g, '-')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-function includesAny(text, parts) {
-  return parts.some(p => text.includes(normalizeText(p)));
-}
+function looksLikeFitDishQuestion(h) {
+  const t = normalizeText(h);
+  if (t.includes('для бренда бургер кинг')) return false;
 
-function startsWithAny(text, parts) {
-  return parts.some(p => text.startsWith(normalizeText(p)));
-}
-
-function looksLikeFitDishQuestion(text) {
-  const t = normalizeText(text);
-
-  const hasFitLogic =
-    (t.includes('подходит') || t.includes('подходит ли')) &&
+  const hasMainStem =
+    t.includes('насколько каждое из этих названий') &&
+    t.includes('подходит') &&
     t.includes('не подходит');
 
-  const productMarkers = [
-    'для этого блюда',
-    'для блюда',
-    'для этого воппера',
-    'для воппера',
-    'для такого воппера',
-    'для этого бургера',
-    'для бургера',
-    'для такого бургера',
-    'для этого напитка',
-    'для напитка',
-    'для такого напитка',
-    'для этого капучино',
-    'для капучино',
-    'для такого капучино',
-    'для этого набора',
-    'для набора',
-    'для такого набора',
-    'для этого соуса',
-    'для соуса',
-    'для такого соуса',
-    'для этого продукта',
-    'для продукта',
-    'для такого продукта'
-  ];
+  const productStem =
+    t.includes('для этого') ||
+    t.includes('для воппера') ||
+    t.includes('для такого воппера') ||
+    t.includes('для бургера') ||
+    t.includes('для такого бургера') ||
+    t.includes('для напитка') ||
+    t.includes('для такого напитка') ||
+    t.includes('для капучино') ||
+    t.includes('для такого капучино') ||
+    t.includes('для набора') ||
+    t.includes('для такого набора') ||
+    t.includes('для соуса') ||
+    t.includes('для такого соуса') ||
+    t.includes('для продукта') ||
+    t.includes('для такого продукта') ||
+    t.includes('для блюда') ||
+    t.includes('для этого блюда');
 
-  if (t.includes('для бренда бургер кинг')) return false;
-  if (!hasFitLogic) return false;
-
-  return productMarkers.some(m => t.includes(normalizeText(m)));
+  return hasMainStem && productStem;
 }
 
-function looksLikeShareIntentQuestion(text) {
-  const t = normalizeText(text);
-
+function looksLikeShareIntentQuestion(h) {
+  const t = normalizeText(h);
   return (
-    (t.includes('насколько вероятно') || t.includes('оцените')) &&
-    (
-      t.includes('расскажете') ||
-      t.includes('расскажете о') ||
-      t.includes('поделитесь') ||
-      t.includes('поделиться') ||
-      t.includes('в соцсетях') ||
-      t.includes('в социальных сетях')
-    )
+    (t.includes('для каждого названия') || t.includes('оцените')) &&
+    (t.includes('расскажете') || t.includes('поделитесь') || t.includes('поделиться')) &&
+    (t.includes('соцсет') || t.includes('социальных сет') || t.includes('друзьям'))
   );
 }
 
 const IMAGE_STATEMENT_CONFIG = [
-  {
-    key: 'Это оригинальный, необычный продукт',
-    aliases: [
-      'это оригинальный, необычный соус',
-      'это оригинальный, необычный продукт',
-      'это оригинальный, необычный бургер',
-      'оригинальный, необычный'
-    ]
-  },
-  {
-    key: 'Ассоциируется со знакомым вкусом',
-    aliases: [
-      'этот соус ассоциируется со знакомым вкусом',
-      'этот бургер ассоциируется со знакомым вкусом',
-      'этот продукт ассоциируется со знакомым вкусом'
-    ]
-  },
-  {
-    key: 'Добавляет премиальности',
-    aliases: [
-      'это премиальный соус',
-      'это премиальный продукт',
-      'добавляет премиальности'
-    ]
-  },
-  {
-    key: 'Продукт с юмором',
-    aliases: [
-      'соус с юмором',
-      'бургер с юмором',
-      'продукт с юмором'
-    ]
-  },
-  {
-    key: 'Хочется попробовать',
-    aliases: [
-      'хочется попробовать воппер с таким соусом',
-      'хочется попробовать такой бургер',
-      'хочется попробовать такой капучино',
-      'хочется попробовать такой напиток',
-      'хочется попробовать такой продукт'
-    ]
-  },
-  {
-    key: 'Ассоциируется с приятным вкусом',
-    aliases: [
-      'этот соус ассоциируется с приятным вкусом',
-      'этот бургер ассоциируется с приятным вкусом',
-      'этот продукт ассоциируется с приятным вкусом'
-    ]
-  },
-  {
-    key: 'Уникальная новинка',
-    aliases: [
-      'это уникальная новинка',
-      'это уникальный бургер',
-      'это уникальный продукт',
-      'оригинальное, отличается от других',
-      'это уникальный напиток'
-    ]
-  },
-  {
-    key: 'Понятное и простое название',
-    aliases: [
-      'понятное и простое название'
-    ]
-  },
-  {
-    key: 'Вызывает отторжение',
-    aliases: [
-      'этот соус вызывает отторжение',
-      'этот продукт вызывает отторжение',
-      'этот бургер вызывает отторжение'
-    ]
-  },
-  {
-    key: 'Понятно, какой будет вкус',
-    aliases: [
-      'понятно, с каким вкусом будет этот бургер',
-      'понятно, с каким вкусом будет этот соус',
-      'понятно, с каким вкусом будет этот продукт',
-      'понятно какой будет вкус'
-    ]
-  },
-  {
-    key: 'Название легко запомнить',
-    aliases: [
-      'название легко запомнить'
-    ]
-  },
-  {
-    key: 'Вызывает аппетит, звучит вкусно',
-    aliases: [
-      'вызывает аппетит',
-      'вызывает аппетит, вкусно звучит',
-      'вызывает аппетит, звучит вкусно',
-      'название звучит вкусно и аппетитно'
-    ]
-  },
-  {
-    key: 'Вызывает доверие',
-    aliases: [
-      'вызывает у меня доверие',
-      'вызывает доверие'
-    ]
-  },
-  {
-    key: 'Звучит как натуральный продукт',
-    aliases: [
-      'звучит как натуральный продукт'
-    ]
-  },
-  {
-    key: 'Звучит как качественный продукт',
-    aliases: [
-      'звучит как качественный продукт'
-    ]
-  },
-  {
-    key: 'По названию понятен маленький формат',
-    aliases: [
-      'по названию понятно, что это мини-бургеры',
-      'по названию понятно, что это маленький формат',
-      'по названию понятно, что это мини формат',
-      'маленький формат'
-    ]
-  },
-  {
-    key: 'По названию понятно, что внутри несколько вкусов',
-    aliases: [
-      'по названию понятно, что внутри несколько разных бургеров',
-      'по названию понятно, что внутри несколько разных вкусов',
-      'внутри несколько разных вкусов'
-    ]
-  },
-  {
-    key: 'Хорошо передает идею набора',
-    aliases: [
-      'это название хорошо передает идею набора',
-      'хорошо передает идею набора'
-    ]
-  },
-  {
-    key: 'Название звучит странно или отталкивающе',
-    aliases: [
-      'название звучит странно или отталкивающе'
-    ]
-  },
-  {
-    key: 'Название из детского меню / продукт для детей',
-    aliases: [
-      'название из детского меню',
-      'продукт для детей'
-    ]
-  },
-  {
-    key: 'Не сытно / не наешься',
-    aliases: [
-      'не сытно',
-      'не наешься'
-    ]
-  },
-  {
-    key: 'Дешевый продукт',
-    aliases: [
-      'дешевый продукт'
-    ]
-  },
-  {
-    key: 'Стоит своих денег',
-    aliases: [
-      'стоит своих денег'
-    ]
-  },
-  {
-    key: 'Подходит для группового потребления',
-    aliases: [
-      'подходит для группового потребления'
-    ]
-  },
-  {
-    key: 'Звучит старомодно',
-    aliases: [
-      'звучит старомодно'
-    ]
-  }
+  { key: 'Это оригинальный, необычный продукт', aliases: ['это оригинальный, необычный соус', 'это оригинальный, необычный продукт', 'это оригинальный, необычный бургер', 'оригинальный, необычный'] },
+  { key: 'Ассоциируется со знакомым вкусом', aliases: ['этот соус ассоциируется со знакомым вкусом', 'этот бургер ассоциируется со знакомым вкусом', 'этот продукт ассоциируется со знакомым вкусом'] },
+  { key: 'Добавляет премиальности', aliases: ['это премиальный соус', 'это премиальный продукт', 'добавляет премиальности'] },
+  { key: 'Продукт с юмором', aliases: ['соус с юмором', 'бургер с юмором', 'продукт с юмором'] },
+  { key: 'Хочется попробовать', aliases: ['хочется попробовать воппер с таким соусом', 'хочется попробовать такой бургер', 'хочется попробовать такой капучино', 'хочется попробовать такой напиток', 'хочется попробовать такой продукт'] },
+  { key: 'Ассоциируется с приятным вкусом', aliases: ['этот соус ассоциируется с приятным вкусом', 'этот бургер ассоциируется с приятным вкусом', 'этот продукт ассоциируется с приятным вкусом'] },
+  { key: 'Уникальная новинка', aliases: ['это уникальная новинка', 'это уникальный бургер', 'это уникальный продукт', 'оригинальное, отличается от других', 'это уникальный напиток'] },
+  { key: 'Понятное и простое название', aliases: ['понятное и простое название'] },
+  { key: 'Вызывает отторжение', aliases: ['этот соус вызывает отторжение', 'этот продукт вызывает отторжение', 'этот бургер вызывает отторжение'] },
+  { key: 'Понятно, какой будет вкус', aliases: ['понятно, с каким вкусом будет этот бургер', 'понятно, с каким вкусом будет этот соус', 'понятно, с каким вкусом будет этот продукт', 'понятно какой будет вкус'] },
+  { key: 'Название легко запомнить', aliases: ['название легко запомнить'] },
+  { key: 'Вызывает аппетит, звучит вкусно', aliases: ['вызывает аппетит', 'вызывает аппетит, вкусно звучит', 'вызывает аппетит, звучит вкусно', 'название звучит вкусно и аппетитно'] },
+  { key: 'Вызывает доверие', aliases: ['вызывает у меня доверие', 'вызывает доверие'] },
+  { key: 'Звучит как натуральный продукт', aliases: ['звучит как натуральный продукт'] },
+  { key: 'Звучит как качественный продукт', aliases: ['звучит как качественный продукт'] },
+  { key: 'По названию понятен маленький формат', aliases: ['по названию понятно, что это мини-бургеры', 'по названию понятно, что это маленький формат', 'по названию понятно, что это мини формат', 'маленький формат'] },
+  { key: 'По названию понятно, что внутри несколько вкусов', aliases: ['по названию понятно, что внутри несколько разных бургеров', 'по названию понятно, что внутри несколько разных вкусов', 'внутри несколько разных вкусов'] },
+  { key: 'Хорошо передает идею набора', aliases: ['это название хорошо передает идею набора', 'хорошо передает идею набора'] },
+  { key: 'Название звучит странно или отталкивающе', aliases: ['название звучит странно или отталкивающе'] },
+  { key: 'Название из детского меню / продукт для детей', aliases: ['название из детского меню', 'продукт для детей'] },
+  { key: 'Не сытно / не наешься', aliases: ['не сытно', 'не наешься'] },
+  { key: 'Дешевый продукт', aliases: ['дешевый продукт'] },
+  { key: 'Стоит своих денег', aliases: ['стоит своих денег'] },
+  { key: 'Подходит для группового потребления', aliases: ['подходит для группового потребления'] },
+  { key: 'Звучит старомодно', aliases: ['звучит старомодно'] }
 ];
 
 function detectImageStatementKey(headerText) {
   const t = normalizeText(headerText);
-
   for (const item of IMAGE_STATEMENT_CONFIG) {
-    if (item.aliases.some(alias => t.includes(normalizeText(alias)))) {
-      return item.key;
-    }
+    if (item.aliases.some(alias => t.includes(normalizeText(alias)))) return item.key;
   }
-
   return null;
 }
 
@@ -424,20 +229,15 @@ function autoDetectMapping(header) {
     image: [],
     directLike: [],
     directBuy: [],
-    audience: {
-      sex: null,
-      age: null,
-      freqNew: null,
-      freqProd: null,
-      freqBK: null
-    }
+    audience: { sex: null, age: null, freqNew: null, freqProd: null, freqBK: null }
   };
 
   header.forEach((h, idx) => {
-    const text = String(h || '');
+    const text = String(h || '').trim();
     const t = normalizeText(text);
+    if (!text) return;
 
-    if (t.includes(normalizeText('Оцените, пожалуйста, насколько вам нравится или не нравится каждое из этих названий'))) {
+    if (text.includes('Оцените, пожалуйста, насколько вам нравится или не нравится каждое из этих названий')) {
       std.like.push(idx);
     }
 
@@ -445,15 +245,15 @@ function autoDetectMapping(header) {
       std.fitDish.push(idx);
     }
 
-    if (t.includes(normalizeText('А теперь оцените, насколько каждое из этих названий подходит или не подходит для бренда Бургер Кинг'))) {
+    if (text.includes('А теперь оцените, насколько каждое из этих названий подходит или не подходит для бренда Бургер Кинг')) {
       std.fitBrand.push(idx);
     }
 
-    if (t.includes(normalizeText('Скажите, насколько вероятно, что Вы посетите ресторан Бургер Кинг'))) {
+    if (text.includes('Скажите, насколько вероятно, что Вы посетите ресторан Бургер Кинг')) {
       std.visitBK.push(idx);
     }
 
-    if (t.includes(normalizeText('Для каждого названия укажите, насколько вероятно, что Вы купите'))) {
+    if (text.includes('Для каждого названия укажите, насколько вероятно, что Вы купите')) {
       std.buyDish.push(idx);
     }
 
@@ -464,42 +264,14 @@ function autoDetectMapping(header) {
     const imageKey = detectImageStatementKey(text);
     if (imageKey) std.image.push({ key: imageKey, idx });
 
-    if (
-      t.includes(normalizeText('Какое из перечисленных ниже названий')) ||
-      t.includes(normalizeText('Какое из этих названий нравится больше всего')) ||
-      t.includes(normalizeText('Нравится больше всего'))
-    ) {
-      std.directLike.push(idx);
-    }
+    if (text.includes('Какое из перечисленных ниже названий')) std.directLike.push(idx);
+    if (text.includes('С каким из этих названий вы бы купили')) std.directBuy.push(idx);
 
-    if (
-      t.includes(normalizeText('С каким из этих названий вы бы купили')) ||
-      t.includes(normalizeText('Купили бы в первую очередь'))
-    ) {
-      std.directBuy.push(idx);
-    }
-
-    if (t.includes(normalizeText('Укажите Ваш пол'))) std.audience.sex = idx;
-    if (t.includes(normalizeText('Укажите Ваш возраст'))) std.audience.age = idx;
-
-    if (
-      t.includes(normalizeText('Как часто Вы берете новинки')) ||
-      t.includes(normalizeText('Как часто вы берете новинки'))
-    ) {
-      std.audience.freqNew = idx;
-    }
-
-    if (
-      t.includes(normalizeText('Как часто вы покупаете капучино')) ||
-      t.includes(normalizeText('Как часто вы покупаете обычный Воппер')) ||
-      t.includes(normalizeText('Как часто вы покупаете'))
-    ) {
-      if (std.audience.freqProd == null) std.audience.freqProd = idx;
-    }
-
-    if (t.includes(normalizeText('Как часто вы посещаете Бургер Кинг'))) {
-      std.audience.freqBK = idx;
-    }
+    if (text.includes('Укажите Ваш пол')) std.audience.sex = idx;
+    if (text.includes('Укажите Ваш возраст')) std.audience.age = idx;
+    if (text.includes('Как часто Вы берете новинки') || text.includes('Как часто вы берете новинки')) std.audience.freqNew = idx;
+    if ((text.includes('Как часто вы покупаете') || text.includes('Как часто Вы покупаете')) && std.audience.freqProd == null) std.audience.freqProd = idx;
+    if (text.includes('Как часто вы посещаете Бургер Кинг')) std.audience.freqBK = idx;
   });
 
   const used = new Set([
@@ -566,24 +338,20 @@ function renderStandardMappingUI(mapping, header) {
     if (!group.indexes.length) {
       const empty = document.createElement('div');
       empty.className = 'mapping-item';
-      empty.innerHTML = '<small>Колонки не найдены по ключевым словам</small>';
+      empty.innerHTML = 'Колонки не найдены по ключевым словам';
       list.appendChild(empty);
     } else {
       group.indexes.forEach(idx => {
         const item = document.createElement('div');
         item.className = 'mapping-item';
         const id = `std-${group.key}-${idx}`;
-
         let stdKey = group.key;
         if (group.key === 'directCompare') {
           stdKey = mapping.std.directLike.includes(idx) ? 'directLike' : 'directBuy';
         }
-
         item.innerHTML = `
           <input type="checkbox" id="${id}" data-std-key="${stdKey}" data-col-idx="${idx}" checked>
-          <label for="${id}">
-            <small>${header[idx]}</small>
-          </label>
+          <label for="${id}"><small>${header[idx]}</small></label>
         `;
         list.appendChild(item);
       });
@@ -769,7 +537,6 @@ function calcStandardBlocks(rows, config, concepts, header) {
 
   function top2ByCols(cols) {
     if (!cols.length) return null;
-
     const res = Array(concepts.length).fill(0);
     rows.forEach(r => {
       cols.forEach((col, i) => {
@@ -783,8 +550,7 @@ function calcStandardBlocks(rows, config, concepts, header) {
 
   function dist5(cols) {
     if (!cols.length) return null;
-
-    const arr = Array.from({ length: concepts.length }, () => ({ '1':0, '2':0, '3':0, '4':0, '5':0 }));
+    const arr = Array.from({ length: concepts.length }, () => ({ '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 }));
     rows.forEach(r => {
       cols.forEach((col, i) => {
         if (i >= concepts.length) return;
@@ -792,7 +558,6 @@ function calcStandardBlocks(rows, config, concepts, header) {
         if (v >= 1 && v <= 5) arr[i][String(v)]++;
       });
     });
-
     return arr.map(d => ({
       '1': d['1'] / n,
       '2': d['2'] / n,
@@ -813,10 +578,8 @@ function calcStandardBlocks(rows, config, concepts, header) {
       config.std.image.forEach(({ key, idx }) => {
         const val = String(getCell(r, idx) || '').trim();
         if (!val) return;
-
         const conceptIndex = findConceptIndexByHeader(header[idx], concepts);
         if (conceptIndex === -1) return;
-
         if (res[key]) res[key][conceptIndex]++;
       });
     });
@@ -825,15 +588,13 @@ function calcStandardBlocks(rows, config, concepts, header) {
       res[k] = res[k].map(v => v / n);
     });
 
-    return Object.fromEntries(
-      Object.entries(res).filter(([, vals]) => vals.some(v => v > 0))
-    );
+    return Object.fromEntries(Object.entries(res).filter(([, vals]) => vals.some(v => v > 0)));
   }
 
   function directSingle(cols) {
     if (!cols.length) return null;
-
     const counts = {};
+
     cols.forEach(idx => {
       rows.forEach(r => {
         const v = String(getCell(r, idx) || '').trim();
@@ -850,11 +611,10 @@ function calcStandardBlocks(rows, config, concepts, header) {
       perConcept[i] = key ? counts[key] / n : 0;
     });
 
-    const noneKey = Object.keys(counts).find(k =>
-      normalizeText(k).includes('ни одно') ||
-      normalizeText(k).includes('не рассказал') ||
-      normalizeText(k).includes('не купил')
-    );
+    const noneKey = Object.keys(counts).find(k => {
+      const t = normalizeText(k);
+      return t.includes('ни одно') || t.includes('ничего из перечисленного') || t.includes('не купил') || t.includes('не рассказал');
+    });
     if (noneKey) none = counts[noneKey] / n;
 
     return { perConcept, none };
@@ -892,7 +652,7 @@ function calcExtraBlocks(rows, config) {
 
   config.extra.forEach(q => {
     if (q.type === 'scale5') {
-      const counts = { '1':0, '2':0, '3':0, '4':0, '5':0 };
+      const counts = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
       rows.forEach(r => {
         const v = parseScaleValue(getCell(r, q.idx));
         if (v >= 1 && v <= 5) counts[String(v)]++;
@@ -968,16 +728,10 @@ function zTest(p1, p2, n1, n2) {
 
 function calcSignificance(stdRes, concepts, n) {
   const alphaZ = 1.96;
-  const signif = {
-    top2: {},
-    scales: {},
-    image: {},
-    directMax: {}
-  };
+  const signif = { top2: {}, scales: {}, image: {}, directMax: {} };
 
   function labelsFor(arr) {
     if (!arr) return null;
-
     return arr.map((p, i) => {
       const greater = [];
       arr.forEach((q, j) => {
@@ -1035,17 +789,11 @@ function setPercent(ws, r, c, value, style) {
 
 function mergeRange(ws, sRow, sCol, eRow, eCol) {
   if (!ws['!merges']) ws['!merges'] = [];
-  ws['!merges'].push({
-    s: { r: sRow, c: sCol },
-    e: { r: eRow, c: eCol }
-  });
+  ws['!merges'].push({ s: { r: sRow, c: sCol }, e: { r: eRow, c: eCol } });
 }
 
 function applySheetRangeRef(ws, endRow, endCol) {
-  ws['!ref'] = XLSX.utils.encode_range({
-    s: { r: 0, c: 0 },
-    e: { r: endRow, c: endCol }
-  });
+  ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: endRow, c: endCol } });
 }
 
 function borderAll() {
@@ -1062,82 +810,20 @@ function hexFill(rgb) {
 }
 
 const STYLES = {
-  title: {
-    font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 14 },
-    fill: hexFill('244C73'),
-    alignment: { horizontal: 'left', vertical: 'center' },
-    border: borderAll()
-  },
-  section: {
-    font: { bold: true, color: { rgb: 'FFFFFF' } },
-    fill: hexFill('244C73'),
-    alignment: { horizontal: 'left', vertical: 'center' },
-    border: borderAll()
-  },
-  blockTitle: {
-    font: { bold: true, color: { rgb: 'FFFFFF' } },
-    fill: hexFill('5E86B4'),
-    alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
-    border: borderAll()
-  },
-  headerCenter: {
-    font: { bold: true, color: { rgb: 'FFFFFF' } },
-    fill: hexFill('244C73'),
-    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-    border: borderAll()
-  },
-  base: {
-    font: { italic: true, color: { rgb: '333333' } },
-    fill: hexFill('D9D9D9'),
-    alignment: { horizontal: 'left', vertical: 'center' },
-    border: borderAll()
-  },
-  label: {
-    alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
-    border: borderAll()
-  },
-  top2Label: {
-    font: { bold: true },
-    fill: hexFill('DCE6F1'),
-    alignment: { horizontal: 'left', vertical: 'center' },
-    border: borderAll()
-  },
-  top2Row: {
-    font: { bold: true },
-    fill: hexFill('DCE6F1'),
-    alignment: { horizontal: 'center', vertical: 'center' },
-    border: borderAll()
-  },
-  percent: {
-    alignment: { horizontal: 'center', vertical: 'center' },
-    border: borderAll()
-  },
-  percentGreen: {
-    alignment: { horizontal: 'center', vertical: 'center' },
-    fill: hexFill('70AD47'),
-    border: borderAll()
-  },
-  signifTextGreen: {
-    font: { bold: true, color: { rgb: '000000' } },
-    alignment: { horizontal: 'center', vertical: 'center' },
-    fill: hexFill('70AD47'),
-    border: borderAll()
-  },
-  legendGreen: {
-    alignment: { horizontal: 'center', vertical: 'center' },
-    fill: hexFill('92D050'),
-    border: borderAll()
-  },
-  legendAccent: {
-    font: { bold: true, color: { rgb: 'C55A11' } },
-    alignment: { horizontal: 'center', vertical: 'center' },
-    fill: hexFill('FFF2CC'),
-    border: borderAll()
-  },
-  legendText: {
-    alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
-    border: borderAll()
-  }
+  title: { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 14 }, fill: hexFill('244C73'), alignment: { horizontal: 'left', vertical: 'center' }, border: borderAll() },
+  section: { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: hexFill('244C73'), alignment: { horizontal: 'left', vertical: 'center' }, border: borderAll() },
+  blockTitle: { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: hexFill('5E86B4'), alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: borderAll() },
+  headerCenter: { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: hexFill('244C73'), alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: borderAll() },
+  base: { font: { italic: true, color: { rgb: '333333' } }, fill: hexFill('D9D9D9'), alignment: { horizontal: 'left', vertical: 'center' }, border: borderAll() },
+  label: { alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: borderAll() },
+  top2Label: { font: { bold: true }, fill: hexFill('DCE6F1'), alignment: { horizontal: 'left', vertical: 'center' }, border: borderAll() },
+  top2Row: { font: { bold: true }, fill: hexFill('DCE6F1'), alignment: { horizontal: 'center', vertical: 'center' }, border: borderAll() },
+  percent: { alignment: { horizontal: 'center', vertical: 'center' }, border: borderAll() },
+  percentGreen: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('70AD47'), border: borderAll() },
+  signifTextGreen: { font: { bold: true, color: { rgb: '000000' } }, alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('70AD47'), border: borderAll() },
+  legendGreen: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('92D050'), border: borderAll() },
+  legendAccent: { font: { bold: true, color: { rgb: 'C55A11' } }, alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('FFF2CC'), border: borderAll() },
+  legendText: { alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: borderAll() }
 };
 
 function isStrong2Plus(arr, index) {
@@ -1183,10 +869,9 @@ function blockValueRows(stdRes, key) {
   ];
 }
 
-function makeSummarySheetStyled(stdRes, concepts, signifRes) {
+function makeSummarySheetStyled(stdRes, concepts, signifRes, extraResults = []) {
   const ws = {};
   const lastCol = concepts.length;
-
   ws['!cols'] = [{ wch: 42 }, ...Array.from({ length: concepts.length }, () => ({ wch: 15 }))];
 
   let row = 0;
@@ -1278,14 +963,35 @@ function makeSummarySheetStyled(stdRes, concepts, signifRes) {
     });
   }
 
+  const summaryExtras = extraResults.filter(x => x.where.includes('summary'));
+  if (summaryExtras.length) {
+    row++;
+    setCell(ws, row, 0, 'ДОПОЛНИТЕЛЬНЫЕ МЕТРИКИ', STYLES.section);
+    mergeRange(ws, row, 0, row, lastCol);
+    row++;
+
+    summaryExtras.forEach(item => {
+      if (item.kind === 'scale5') {
+        setCell(ws, row, 0, item.title, STYLES.label);
+        setPercent(ws, row, 1, item.dist.top2, STYLES.percent);
+        if (lastCol >= 2) mergeRange(ws, row, 1, row, lastCol);
+        row++;
+      } else {
+        setCell(ws, row, 0, item.title, STYLES.label);
+        setCell(ws, row, 1, item.dist.slice(0, 3).map(x => `${x.cat}: ${Math.round(x.p * 100)}%`).join(' | '), STYLES.label);
+        if (lastCol >= 1) mergeRange(ws, row, 1, row, lastCol);
+        row++;
+      }
+    });
+  }
+
   applySheetRangeRef(ws, row, lastCol);
   return ws;
 }
 
-function makeFullSheetStyled(stdRes, concepts) {
+function makeFullSheetStyled(stdRes, concepts, extraResults = []) {
   const ws = {};
   const lastCol = concepts.length;
-
   ws['!cols'] = [{ wch: 46 }, ...Array.from({ length: concepts.length }, () => ({ wch: 15 }))];
 
   let row = 0;
@@ -1330,6 +1036,44 @@ function makeFullSheetStyled(stdRes, concepts) {
     });
 
     row++;
+  }
+
+  const fullExtras = extraResults.filter(x => x.where.includes('full'));
+  if (fullExtras.length) {
+    setCell(ws, row, 0, 'ДОПОЛНИТЕЛЬНЫЕ МЕТРИКИ', STYLES.section);
+    mergeRange(ws, row, 0, row, lastCol);
+    row++;
+
+    fullExtras.forEach(item => {
+      setCell(ws, row, 0, item.title, STYLES.blockTitle);
+      mergeRange(ws, row, 0, row, lastCol);
+      row++;
+
+      if (item.kind === 'scale5') {
+        [
+          ['ТОП-2 (4+5)', item.dist.top2],
+          ['1', item.dist['1']],
+          ['2', item.dist['2']],
+          ['3', item.dist['3']],
+          ['4', item.dist['4']],
+          ['5', item.dist['5']]
+        ].forEach(([label, value]) => {
+          setCell(ws, row, 0, label, label.startsWith('ТОП') ? STYLES.top2Label : STYLES.label);
+          setPercent(ws, row, 1, value, label.startsWith('ТОП') ? STYLES.top2Row : STYLES.percent);
+          if (lastCol >= 1) mergeRange(ws, row, 1, row, lastCol);
+          row++;
+        });
+      } else {
+        item.dist.forEach(x => {
+          setCell(ws, row, 0, x.cat, STYLES.label);
+          setPercent(ws, row, 1, x.p, STYLES.percent);
+          if (lastCol >= 1) mergeRange(ws, row, 1, row, lastCol);
+          row++;
+        });
+      }
+
+      row++;
+    });
   }
 
   const hasDirectLike = !!stdRes.direct.likeMost;
@@ -1444,22 +1188,10 @@ function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, m
       setCell(ws, row, startCol, label, STYLES.label);
       vals.forEach((v, i) => {
         if (mode === 'green') {
-          setPercent(
-            ws,
-            row,
-            startCol + 1 + i,
-            v,
-            isStrong2Plus(signifRes.image[label], i) ? STYLES.percentGreen : STYLES.percent
-          );
+          setPercent(ws, row, startCol + 1 + i, v, isStrong2Plus(signifRes.image[label], i) ? STYLES.percentGreen : STYLES.percent);
         } else {
           const letters = signifRes.image[label][i];
-          setCell(
-            ws,
-            row,
-            startCol + 1 + i,
-            signifCellText(v, letters),
-            letters && letters.length ? STYLES.signifTextGreen : STYLES.percent
-          );
+          setCell(ws, row, startCol + 1 + i, signifCellText(v, letters), letters && letters.length ? STYLES.signifTextGreen : STYLES.percent);
         }
       });
       row++;
@@ -1555,7 +1287,6 @@ function makeAudienceSheetStyled(audienceRes) {
   ws['!cols'] = [{ wch: 42 }, { wch: 18 }];
 
   let row = 0;
-
   setCell(ws, row, 0, 'АУДИТОРИЯ', STYLES.title);
   mergeRange(ws, row, 0, row, 1);
   row++;
