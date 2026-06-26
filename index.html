@@ -7,69 +7,66 @@
   <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
   <style>
     :root {
-      --bg: #f4f7fb;
+      --bg: #f3f6fb;
       --surface: #ffffff;
-      --surface-2: #f8fafc;
-      --text: #18324b;
-      --muted: #66788a;
-      --line: #d7e0ea;
-      --primary: #2f6fed;
-      --primary-hover: #215ad1;
-      --primary-soft: #eaf1ff;
-      --success: #1f9d63;
-      --success-soft: #eaf8f1;
-      --danger: #d64545;
-      --danger-soft: #fdeeee;
-      --shadow: 0 16px 40px rgba(18, 42, 66, 0.08);
-      --radius-lg: 20px;
+      --surface-soft: #f8fbff;
+      --text: #16324a;
+      --muted: #6b7f92;
+      --line: #d8e2ec;
+      --primary: #245b8f;
+      --primary-2: #3c78b5;
+      --accent: #70ad47;
+      --danger: #c84d4d;
+      --radius-xl: 24px;
+      --radius-lg: 18px;
       --radius-md: 14px;
-      --radius-sm: 10px;
+      --shadow: 0 18px 50px rgba(27, 52, 78, 0.09);
     }
 
     * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background:
-        radial-gradient(circle at top left, rgba(47,111,237,0.08), transparent 28%),
-        radial-gradient(circle at top right, rgba(31,157,99,0.06), transparent 22%),
-        var(--bg);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(36, 91, 143, 0.10), transparent 25%),
+        radial-gradient(circle at top right, rgba(112, 173, 71, 0.08), transparent 20%),
+        var(--bg);
     }
 
     .page {
-      max-width: 1240px;
+      max-width: 1220px;
       margin: 0 auto;
-      padding: 32px 20px 56px;
+      padding: 28px 18px 56px;
     }
 
     .hero {
-      background: linear-gradient(135deg, #18324b 0%, #244c73 100%);
+      background: linear-gradient(135deg, #244c73 0%, #355f8d 100%);
       color: #fff;
       border-radius: 28px;
-      padding: 30px 28px;
+      padding: 28px 28px 26px;
       box-shadow: var(--shadow);
-      margin-bottom: 24px;
+      margin-bottom: 22px;
     }
 
     .hero h1 {
       margin: 0 0 10px;
-      font-size: clamp(28px, 4vw, 42px);
+      font-size: clamp(28px, 4vw, 40px);
       line-height: 1.05;
     }
 
     .hero p {
       margin: 0;
       max-width: 760px;
-      color: rgba(255,255,255,0.88);
-      font-size: 16px;
+      color: rgba(255,255,255,0.9);
       line-height: 1.6;
+      font-size: 15px;
     }
 
     .layout {
       display: grid;
-      grid-template-columns: 1.2fr 0.8fr;
+      grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
       gap: 20px;
       align-items: start;
     }
@@ -82,32 +79,31 @@
     .panel {
       background: var(--surface);
       border: 1px solid var(--line);
-      border-radius: var(--radius-lg);
+      border-radius: var(--radius-xl);
       box-shadow: var(--shadow);
       overflow: hidden;
     }
 
     .panel-head {
-      padding: 18px 20px 0;
+      padding: 20px 22px 0;
     }
 
-    .eyebrow {
+    .step {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 6px 10px;
+      padding: 7px 11px;
       border-radius: 999px;
-      background: var(--primary-soft);
+      background: #eaf2fb;
       color: var(--primary);
       font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
+      font-weight: 800;
       text-transform: uppercase;
+      letter-spacing: .04em;
     }
 
     .panel h2 {
       margin: 12px 0 6px;
-      font-size: 24px;
+      font-size: 23px;
       line-height: 1.15;
     }
 
@@ -115,311 +111,192 @@
       margin: 0;
       color: var(--muted);
       font-size: 14px;
-      line-height: 1.5;
+      line-height: 1.55;
     }
 
     .panel-body {
-      padding: 18px 20px 20px;
+      padding: 18px 22px 22px;
     }
 
     .upload-box {
-      border: 1.5px dashed #bfd0e6;
+      border: 1.5px dashed #bdd0e3;
+      border-radius: 20px;
+      padding: 22px;
       background: linear-gradient(180deg, #fbfdff 0%, #f6f9fd 100%);
-      border-radius: 18px;
-      padding: 24px;
     }
 
     .field {
       display: grid;
       gap: 8px;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
 
     .field:last-child { margin-bottom: 0; }
 
     .field label {
       font-size: 14px;
-      font-weight: 600;
-      color: var(--text);
+      font-weight: 700;
     }
 
     input[type="file"],
     input[type="text"],
     select {
       width: 100%;
+      padding: 13px 14px;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: #fff;
-      padding: 14px 14px;
       font: inherit;
       color: var(--text);
       outline: none;
-      transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+      transition: border-color .18s ease, box-shadow .18s ease;
     }
 
     input[type="file"]:focus,
     input[type="text"]:focus,
     select:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 4px rgba(47,111,237,0.12);
+      border-color: var(--primary-2);
+      box-shadow: 0 0 0 4px rgba(60,120,181,0.14);
     }
 
     .status {
       white-space: pre-line;
-      border-radius: 14px;
-      padding: 14px 16px;
-      font-size: 14px;
-      line-height: 1.5;
       border: 1px solid var(--line);
-      background: var(--surface-2);
+      border-radius: 14px;
+      background: var(--surface-soft);
       color: var(--muted);
+      padding: 14px 15px;
+      line-height: 1.55;
+      font-size: 14px;
     }
 
     .status.ok {
-      background: var(--success-soft);
-      border-color: #bfe8d2;
-      color: #156945;
+      background: #eef8e8;
+      border-color: #cfe7bf;
+      color: #326b12;
     }
 
     .status.error {
-      background: var(--danger-soft);
-      border-color: #f3c4c4;
-      color: #9f2d2d;
+      background: #fdf0f0;
+      border-color: #efcaca;
+      color: var(--danger);
     }
 
-    .summary-grid {
-      display: grid;
-      gap: 14px;
-    }
-
-    .compact-card {
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 16px;
-      background: linear-gradient(180deg, #fff 0%, #fbfcfe 100%);
-    }
-
-    .compact-card.disabled {
-      opacity: 0.68;
-      background: #fafbfc;
-    }
-
-    .compact-top {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: start;
-      margin-bottom: 8px;
-    }
-
-    .compact-title {
-      margin: 0;
-      font-size: 16px;
-      font-weight: 700;
-      line-height: 1.35;
-      color: var(--text);
-    }
-
-    .compact-meta {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 10px;
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 6px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 700;
-      line-height: 1;
-      border: 1px solid transparent;
-    }
-
-    .badge.blue {
-      background: var(--primary-soft);
-      color: var(--primary);
-      border-color: #cfe0ff;
-    }
-
-    .badge.gray {
-      background: #f1f5f9;
-      color: #607285;
-      border-color: #dde5ee;
-    }
-
-    .badge.green {
-      background: var(--success-soft);
-      color: var(--success);
-      border-color: #bfe8d2;
-    }
-
-    .badge.orange {
-      background: #fff4e8;
-      color: #c56b12;
-      border-color: #f6d5ad;
-    }
-
-    .compact-note {
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.5;
-      margin: 0;
-    }
-
-    .checkline {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 8px;
-    }
-
-    .checkline input[type="checkbox"] {
-      transform: translateY(-1px);
-      width: 16px;
-      height: 16px;
-      accent-color: var(--primary);
-    }
-
-    details.compact-details {
-      margin-top: 10px;
-      border-top: 1px dashed var(--line);
-      padding-top: 10px;
-    }
-
-    details.compact-details summary {
-      cursor: pointer;
-      list-style: none;
-      color: var(--primary);
-      font-weight: 600;
-      font-size: 13px;
-    }
-
-    details.compact-details summary::-webkit-details-marker { display: none; }
-
-    .detail-list {
-      display: grid;
-      gap: 8px;
-      margin-top: 10px;
-    }
-
-    .detail-item {
-      font-size: 13px;
-      line-height: 1.45;
-      color: var(--muted);
-      background: #f8fafc;
-      border: 1px solid #e6edf5;
-      border-radius: 12px;
-      padding: 10px 12px;
-    }
-
-    .extra-group {
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 16px;
-      background: linear-gradient(180deg, #fff 0%, #fbfcfe 100%);
-    }
-
-    .extra-group + .extra-group {
-      margin-top: 14px;
-    }
-
-    .row {
+    .mapping-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 14px;
     }
 
-    .toggle-pills {
+    .mapping-group {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(180deg, #fff 0%, #fbfcff 100%);
+      padding: 16px;
+    }
+
+    .mapping-group-title {
+      margin-bottom: 12px;
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1.35;
+      color: var(--text);
+    }
+
+    .mapping-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .mapping-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid #e3ebf3;
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    .mapping-item input[type="checkbox"] {
+      margin-top: 2px;
+      accent-color: var(--primary-2);
+    }
+
+    .mapping-item label {
+      cursor: pointer;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .mapping-item small {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(180deg, #fff 0%, #fbfcff 100%);
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .col-half {
+      min-width: 0;
+    }
+
+    .pill-checkboxes {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
     }
 
-    .toggle-pills label {
+    .pill-checkboxes label {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 10px 12px;
+      padding: 9px 12px;
       border-radius: 999px;
       border: 1px solid var(--line);
       background: #fff;
-      font-size: 14px;
-      font-weight: 500;
       cursor: pointer;
-    }
-
-    .toggle-pills input {
-      accent-color: var(--primary);
-    }
-
-    .inline-help {
-      margin-top: 10px;
-      font-size: 13px;
-      color: var(--muted);
-      line-height: 1.45;
-    }
-
-    .image-mapping {
-      display: grid;
-      gap: 12px;
-    }
-
-    .image-row {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 12px;
-      align-items: center;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 14px;
-      background: #fff;
-    }
-
-    .image-row-title {
-      margin: 0 0 4px;
       font-size: 14px;
-      font-weight: 700;
     }
 
-    .image-row-sub {
-      margin: 0;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.45;
-    }
-
-    .run-box {
-      display: grid;
-      gap: 14px;
+    .pill-checkboxes input {
+      accent-color: var(--primary-2);
     }
 
     .primary-btn {
-      appearance: none;
       border: none;
       border-radius: 14px;
       padding: 16px 18px;
       font: inherit;
-      font-weight: 700;
       font-size: 15px;
+      font-weight: 800;
       color: #fff;
-      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+      background: linear-gradient(135deg, #244c73 0%, #3c78b5 100%);
+      box-shadow: 0 14px 28px rgba(36,76,115,0.22);
       cursor: pointer;
-      transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease;
-      box-shadow: 0 14px 28px rgba(47,111,237,0.22);
+      transition: transform .18s ease, opacity .18s ease;
     }
 
     .primary-btn:hover { transform: translateY(-1px); }
-    .primary-btn:disabled { opacity: 0.6; cursor: wait; transform: none; }
+    .primary-btn:disabled { opacity: .65; cursor: wait; transform: none; }
 
     .sidebar-card {
-      background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+      background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
       border: 1px solid var(--line);
       border-radius: 20px;
-      padding: 18px;
       box-shadow: var(--shadow);
+      padding: 18px;
     }
 
     .sidebar-card h3 {
@@ -431,12 +308,12 @@
     .sidebar-card p {
       margin: 0;
       color: var(--muted);
-      font-size: 14px;
       line-height: 1.55;
+      font-size: 14px;
     }
 
-    .sidebar-list {
-      margin: 14px 0 0;
+    .sidebar-card ul {
+      margin: 12px 0 0;
       padding-left: 18px;
       color: var(--muted);
       display: grid;
@@ -445,18 +322,10 @@
       line-height: 1.5;
     }
 
-    .hidden {
-      display: none !important;
-    }
-
     @media (max-width: 980px) {
-      .layout {
-        grid-template-columns: 1fr;
-      }
-
-      .row {
-        grid-template-columns: 1fr;
-      }
+      .layout { grid-template-columns: 1fr; }
+      .mapping-grid,
+      .row { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -464,16 +333,16 @@
   <div class="page">
     <section class="hero">
       <h1>Topline generator</h1>
-      <p>Загрузите Excel-базу, проверьте автоматически найденные блоки и сформируйте topline в Excel без ручной сборки таблиц.</p>
+      <p>Загрузите Excel-базу, проверьте автоматически найденные вопросы и сформируйте красивый topline в Excel без ручной сборки таблиц.</p>
     </section>
 
     <div class="layout">
       <main class="stack">
         <section class="panel">
           <div class="panel-head">
-            <span class="eyebrow">Шаг 1</span>
+            <span class="step">Шаг 1</span>
             <h2>Загрузка базы</h2>
-            <p class="panel-subtitle">Сервис читает Excel, определяет стандартные вопросы, дополнительные метрики и готовит структуру topline.</p>
+            <p class="panel-subtitle">Сервис читает файл, определяет стандартные блоки и готовит структуру topline.</p>
           </div>
           <div class="panel-body">
             <div class="upload-box">
@@ -486,68 +355,54 @@
           </div>
         </section>
 
-        <section id="mappingSection" class="panel hidden">
+        <section id="mappingSection" class="panel" style="display:none;">
           <div class="panel-head">
-            <span class="eyebrow">Шаг 2</span>
+            <span class="step">Шаг 2</span>
             <h2>Стандартные вопросы</h2>
-            <p class="panel-subtitle">Вопросы сгруппированы компактно: видно тип блока и количество найденных названий, без длинных простыней заголовков.</p>
+            <p class="panel-subtitle">Проверьте, какие основные вопросы сервис определил автоматически.</p>
           </div>
           <div class="panel-body">
-            <div id="standardGroups" class="summary-grid"></div>
+            <div id="standardGroups" class="mapping-grid"></div>
           </div>
         </section>
 
-        <section id="imageSection" class="panel hidden">
+        <section id="extraSection" class="panel" style="display:none;">
           <div class="panel-head">
-            <span class="eyebrow">Шаг 3</span>
-            <h2>Имиджевые высказывания</h2>
-            <p class="panel-subtitle">Здесь можно быстро проверить, какие имиджевые формулировки нашлись автоматически и где может потребоваться ручная проверка.</p>
-          </div>
-          <div class="panel-body">
-            <div id="imageStatements" class="image-mapping"></div>
-          </div>
-        </section>
-
-        <section id="extraSection" class="panel hidden">
-          <div class="panel-head">
-            <span class="eyebrow">Шаг 4</span>
+            <span class="step">Шаг 3</span>
             <h2>Дополнительные метрики</h2>
-            <p class="panel-subtitle">Похожие вопросы объединяются в группы. Название метрики можно задать один раз на всю группу, а не для каждого названия отдельно.</p>
+            <p class="panel-subtitle">Если в базе есть другие закрытые вопросы, их можно вывести в topline отдельными метриками.</p>
           </div>
           <div class="panel-body">
             <div id="extraQuestions"></div>
           </div>
         </section>
 
-        <section id="runSection" class="panel hidden">
+        <section id="runSection" class="panel" style="display:none;">
           <div class="panel-head">
-            <span class="eyebrow">Шаг 5</span>
+            <span class="step">Шаг 4</span>
             <h2>Расчёт</h2>
-            <p class="panel-subtitle">После проверки блоков сервис сформирует Excel-файл со всеми листами topline.</p>
+            <p class="panel-subtitle">После проверки вопросов сервис сформирует Excel-файл со всеми листами topline.</p>
           </div>
           <div class="panel-body">
-            <div class="run-box">
-              <button id="runBtn" class="primary-btn">Посчитать topline</button>
-            </div>
+            <button id="runBtn" class="primary-btn">Посчитать topline</button>
           </div>
         </section>
       </main>
 
       <aside class="stack">
         <section class="sidebar-card">
-          <h3>Что изменилось</h3>
-          <p>Интерфейс стал компактнее: вместо длинных текстов вопросов показываются короткие карточки по типам блоков и числу найденных названий. [file:256][file:257]</p>
-          <ul class="sidebar-list">
-            <li>Стандартные вопросы — по группам.</li>
-            <li>Дополнительные метрики — с объединением похожих формулировок.</li>
-            <li>Имиджевые высказывания — отдельной проверкой.</li>
-            <li>Расчёт — одной кнопкой после быстрой проверки.</li>
+          <h3>Что важно</h3>
+          <p>Этот экран обновлён только визуально. Логика красивой цветной Excel-выгрузки должна оставаться прежней. [file:346][file:256]</p>
+          <ul>
+            <li>Цветной topline остаётся как был.</li>
+            <li>Страница становится чище и аккуратнее.</li>
+            <li>Основные блоки удобнее проверять перед расчётом.</li>
           </ul>
         </section>
 
         <section class="sidebar-card">
-          <h3>Как пользоваться</h3>
-          <p>Сначала загрузите базу, затем проверьте компактные карточки в стандартных и дополнительных вопросах, после чего запускайте расчёт. [file:255][file:257]</p>
+          <h3>Порядок работы</h3>
+          <p>Загрузи базу, проверь найденные вопросы, при необходимости подпиши дополнительные метрики и запусти расчёт. [file:346]</p>
         </section>
       </aside>
     </div>
