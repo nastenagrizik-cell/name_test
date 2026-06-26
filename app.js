@@ -82,7 +82,7 @@ function looksLikeDirectShareQuestion(h) {
   const t = normalizeText(h);
   return (
     (t.includes('с каким из этих названий') || t.includes('какое из этих названий')) &&
-    (t.includes('рассказали') || t.includes('рассказать') || t.includes('поделились') || t.includes('поделиться')) &&
+    (t.includes('рассказал') || t.includes('рассказала') || t.includes('рассказать') || t.includes('поделил') || t.includes('поделиться')) &&
     (t.includes('в первую очередь') || t.includes('сначала'))
   );
 }
@@ -300,7 +300,6 @@ function autoDetectMapping(header) {
     image: [],
     directLike: [],
     directBuy: [],
-    directShare: [],
     audience: { sex: null, age: null, freqNew: null, freqProd: null, freqBK: null }
   };
 
@@ -357,7 +356,6 @@ function autoDetectMapping(header) {
     ...std.image.map(x => x.idx),
     ...std.directLike,
     ...std.directBuy,
-    ...std.directShare,
     std.audience.sex,
     std.audience.age,
     std.audience.freqNew,
@@ -425,9 +423,7 @@ function renderStandardMappingUI(mapping, header) {
         let stdKey = group.key;
 
         if (group.key === 'directCompare') {
-          if (mapping.std.directLike.includes(idx)) stdKey = 'directLike';
-          else if (mapping.std.directBuy.includes(idx)) stdKey = 'directBuy';
-          else stdKey = 'directShare';
+          stdKey = mapping.std.directLike.includes(idx) ? 'directLike' : (mapping.std.directBuy.includes(idx) ? 'directBuy' : 'directShare');
         }
 
         item.innerHTML = `
@@ -506,7 +502,6 @@ function collectUserConfig(mapping) {
     shareIntent: [],
     directLike: [],
     directBuy: [],
-    directShare: [],
     image: mapping.std.image.slice(),
     audience: mapping.std.audience
   };
@@ -729,8 +724,7 @@ function calcStandardBlocks(rows, config, concepts, header) {
     image: imageBlock(),
     direct: {
       likeMost: directSingle(config.std.directLike),
-      buyFirst: directSingle(config.std.directBuy),
-      shareFirst: directSingle(config.std.directShare)
+      buyFirst: directSingle(config.std.directBuy)
     }
   };
 }
@@ -1015,9 +1009,8 @@ function makeSummarySheetStyled(stdRes, concepts, signifRes, extraResults = []) 
 
   const hasDirectLike = !!stdRes.direct.likeMost;
   const hasDirectBuy = !!stdRes.direct.buyFirst;
-  const hasDirectShare = !!stdRes.direct.shareFirst;
 
-  if (hasDirectLike || hasDirectBuy || hasDirectShare) {
+  if (hasDirectLike || hasDirectBuy) {
     row++;
     setCell(ws, row, 0, 'Прямое сравнение', STYLES.section);
     mergeRange(ws, row, 0, row, lastCol);
@@ -1035,14 +1028,6 @@ function makeSummarySheetStyled(stdRes, concepts, signifRes, extraResults = []) 
       setCell(ws, row, 0, 'Куплю в первую очередь', STYLES.label);
       stdRes.direct.buyFirst.perConcept.forEach((v, i) => {
         setPercent(ws, row, i + 1, v, signifRes.directMax.buyFirst?.[i] ? STYLES.percentGreen : STYLES.percent);
-      });
-      row++;
-    }
-
-    if (hasDirectShare) {
-      setCell(ws, row, 0, 'Рассказал(а) бы в первую очередь', STYLES.label);
-      stdRes.direct.shareFirst.perConcept.forEach((v, i) => {
-        setPercent(ws, row, i + 1, v, signifRes.directMax.shareFirst?.[i] ? STYLES.percentGreen : STYLES.percent);
       });
       row++;
     }
@@ -1186,9 +1171,8 @@ function makeFullSheetStyled(stdRes, concepts, extraResults = []) {
 
   const hasDirectLike = !!stdRes.direct.likeMost;
   const hasDirectBuy = !!stdRes.direct.buyFirst;
-  const hasDirectShare = !!stdRes.direct.shareFirst;
 
-  if (hasDirectLike || hasDirectBuy || hasDirectShare) {
+  if (hasDirectLike || hasDirectBuy) {
     setCell(ws, row, 0, 'ПРЯМОЕ СРАВНЕНИЕ', STYLES.section);
     mergeRange(ws, row, 0, row, 2);
     row++;
@@ -1311,9 +1295,8 @@ function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, m
 
   const hasDirectLike = !!stdRes.direct.likeMost;
   const hasDirectBuy = !!stdRes.direct.buyFirst;
-  const hasDirectShare = !!stdRes.direct.shareFirst;
 
-  if (hasDirectLike || hasDirectBuy || hasDirectShare) {
+  if (hasDirectLike || hasDirectBuy) {
     setCell(ws, row, startCol, 'ПРЯМОЕ СРАВНЕНИЕ', STYLES.section);
     mergeRange(ws, row, startCol, row, startCol + 2);
     row++;
