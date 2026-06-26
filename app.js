@@ -1169,44 +1169,37 @@ function makeFullSheetStyled(stdRes, concepts, extraResults = []) {
     });
   }
 
-  const hasDirectLike = !!stdRes.direct.likeMost;
-  const hasDirectBuy = !!stdRes.direct.buyFirst;
-
-  if (hasDirectLike || hasDirectBuy) {
-    setCell(ws, row, 0, 'ПРЯМОЕ СРАВНЕНИЕ', STYLES.section);
-    mergeRange(ws, row, 0, row, 2);
-    row++;
-
-    setCell(ws, row, 0, 'Название', STYLES.headerCenter);
-    if (hasDirectLike) setCell(ws, row, 1, 'Нравится больше всего', STYLES.headerCenter);
-    if (hasDirectBuy) setCell(ws, row, hasDirectLike ? 2 : 1, 'Куплю в первую очередь', STYLES.headerCenter);
-    row++;
-
-    concepts.forEach((c, i) => {
-      setCell(ws, row, 0, c.label, STYLES.label);
-      let col = 1;
-      if (hasDirectLike) {
-        setPercent(ws, row, col, stdRes.direct.likeMost.perConcept[i] || 0, STYLES.percent);
-        col++;
-      }
-      if (hasDirectBuy) {
-        setPercent(ws, row, col, stdRes.direct.buyFirst.perConcept[i] || 0, STYLES.percent);
-      }
-      row++;
-    });
-
-    setCell(ws, row, 0, 'Ни одно из них', STYLES.label);
+  
+const hasDirectLike = !!stdRes.direct.likeMost;
+const hasDirectBuy = !!stdRes.direct.buyFirst;
+const hasDirectShare = !!stdRes.direct.shareFirst;
+if (hasDirectLike || hasDirectBuy || hasDirectShare) {
+  setCell(ws, row, 0, 'ПРЯМОЕ СРАВНЕНИЕ', STYLES.section);
+  const directCols = (hasDirectLike ? 1 : 0) + (hasDirectBuy ? 1 : 0) + (hasDirectShare ? 1 : 0);
+  mergeRange(ws, row, 0, row, Math.max(directCols, 1));
+  row++;
+  setCell(ws, row, 0, 'Название', STYLES.headerCenter);
+  let hdrCol = 1;
+  if (hasDirectLike) setCell(ws, row, hdrCol++, 'Нравится больше всего', STYLES.headerCenter);
+  if (hasDirectBuy) setCell(ws, row, hdrCol++, 'Куплю в первую очередь', STYLES.headerCenter);
+  if (hasDirectShare) setCell(ws, row, hdrCol++, 'Рассказал(а) бы в первую очередь', STYLES.headerCenter);
+  row++;
+  concepts.forEach((c, i) => {
+    setCell(ws, row, 0, c.label, STYLES.label);
     let col = 1;
-    if (hasDirectLike) {
-      setPercent(ws, row, col, stdRes.direct.likeMost.none || 0, STYLES.percent);
-      col++;
-    }
-    if (hasDirectBuy) {
-      setPercent(ws, row, col, stdRes.direct.buyFirst.none || 0, STYLES.percent);
-    }
-  }
+    if (hasDirectLike) setPercent(ws, row, col++, stdRes.direct.likeMost.perConcept[i] || 0, STYLES.percent);
+    if (hasDirectBuy) setPercent(ws, row, col++, stdRes.direct.buyFirst.perConcept[i] || 0, STYLES.percent);
+    if (hasDirectShare) setPercent(ws, row, col++, stdRes.direct.shareFirst.perConcept[i] || 0, STYLES.percent);
+    row++;
+  });
+  setCell(ws, row, 0, 'Ни одно из них', STYLES.label);
+  let col = 1;
+  if (hasDirectLike) setPercent(ws, row, col++, stdRes.direct.likeMost.none || 0, STYLES.percent);
+  if (hasDirectBuy) setPercent(ws, row, col++, stdRes.direct.buyFirst.none || 0, STYLES.percent);
+  if (hasDirectShare) setPercent(ws, row, col++, stdRes.direct.shareFirst.none || 0, STYLES.percent);
+}
+applySheetRangeRef(ws, row, Math.max(lastCol, 3));
 
-  applySheetRangeRef(ws, row, Math.max(lastCol, 2));
   return ws;
 }
 
@@ -1293,69 +1286,50 @@ function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, m
     row++;
   }
 
-  const hasDirectLike = !!stdRes.direct.likeMost;
-  const hasDirectBuy = !!stdRes.direct.buyFirst;
-
-  if (hasDirectLike || hasDirectBuy) {
-    setCell(ws, row, startCol, 'ПРЯМОЕ СРАВНЕНИЕ', STYLES.section);
-    mergeRange(ws, row, startCol, row, startCol + 2);
-    row++;
-
-    setCell(ws, row, startCol, 'Название', STYLES.headerCenter);
-    if (hasDirectLike) setCell(ws, row, startCol + 1, 'Нравится больше всего', STYLES.headerCenter);
-    if (hasDirectBuy) setCell(ws, row, startCol + (hasDirectLike ? 2 : 1), 'Куплю в первую очередь', STYLES.headerCenter);
-    row++;
-
-    concepts.forEach((c, i) => {
-      setCell(ws, row, startCol, c.label, STYLES.label);
-
-      if (mode === 'green') {
-        let col = startCol + 1;
-        if (hasDirectLike) {
-          setPercent(ws, row, col, stdRes.direct.likeMost.perConcept[i] || 0, signifRes.directMax.likeMost?.[i] ? STYLES.percentGreen : STYLES.percent);
-          col++;
-        }
-        if (hasDirectBuy) {
-          setPercent(ws, row, col, stdRes.direct.buyFirst.perConcept[i] || 0, signifRes.directMax.buyFirst?.[i] ? STYLES.percentGreen : STYLES.percent);
-        }
-      } else {
-        let col = startCol + 1;
-        if (hasDirectLike) {
-          setCell(ws, row, col, Math.round((stdRes.direct.likeMost.perConcept[i] || 0) * 100) + '%', STYLES.percent);
-          col++;
-        }
-        if (hasDirectBuy) {
-          setCell(ws, row, col, Math.round((stdRes.direct.buyFirst.perConcept[i] || 0) * 100) + '%', STYLES.percent);
-        }
-      }
-
-      row++;
-    });
-
-    setCell(ws, row, startCol, 'Ни одно из них', STYLES.label);
+  
+const hasDirectLike = !!stdRes.direct.likeMost;
+const hasDirectBuy = !!stdRes.direct.buyFirst;
+const hasDirectShare = !!stdRes.direct.shareFirst;
+if (hasDirectLike || hasDirectBuy || hasDirectShare) {
+  setCell(ws, row, startCol, 'ПРЯМОЕ СРАВНЕНИЕ', STYLES.section);
+  mergeRange(ws, row, startCol, row, startCol + 3);
+  row++;
+  setCell(ws, row, startCol, 'Название', STYLES.headerCenter);
+  let hdrCol = startCol + 1;
+  if (hasDirectLike) setCell(ws, row, hdrCol++, 'Нравится больше всего', STYLES.headerCenter);
+  if (hasDirectBuy) setCell(ws, row, hdrCol++, 'Куплю в первую очередь', STYLES.headerCenter);
+  if (hasDirectShare) setCell(ws, row, hdrCol++, 'Рассказал(а) бы в первую очередь', STYLES.headerCenter);
+  row++;
+  concepts.forEach((c, i) => {
+    setCell(ws, row, startCol, c.label, STYLES.label);
     if (mode === 'green') {
       let col = startCol + 1;
-      if (hasDirectLike) {
-        setPercent(ws, row, col, stdRes.direct.likeMost.none || 0, STYLES.percent);
-        col++;
-      }
-      if (hasDirectBuy) {
-        setPercent(ws, row, col, stdRes.direct.buyFirst.none || 0, STYLES.percent);
-      }
+      if (hasDirectLike) setPercent(ws, row, col++, stdRes.direct.likeMost.perConcept[i] || 0, signifRes.directMax.likeMost?.[i] ? STYLES.percentGreen : STYLES.percent);
+      if (hasDirectBuy) setPercent(ws, row, col++, stdRes.direct.buyFirst.perConcept[i] || 0, signifRes.directMax.buyFirst?.[i] ? STYLES.percentGreen : STYLES.percent);
+      if (hasDirectShare) setPercent(ws, row, col++, stdRes.direct.shareFirst.perConcept[i] || 0, signifRes.directMax.shareFirst?.[i] ? STYLES.percentGreen : STYLES.percent);
     } else {
       let col = startCol + 1;
-      if (hasDirectLike) {
-        setCell(ws, row, col, Math.round((stdRes.direct.likeMost.none || 0) * 100) + '%', STYLES.percent);
-        col++;
-      }
-      if (hasDirectBuy) {
-        setCell(ws, row, col, Math.round((stdRes.direct.buyFirst.none || 0) * 100) + '%', STYLES.percent);
-      }
+      if (hasDirectLike) setCell(ws, row, col++, Math.round((stdRes.direct.likeMost.perConcept[i] || 0) * 100), STYLES.percent);
+      if (hasDirectBuy) setCell(ws, row, col++, Math.round((stdRes.direct.buyFirst.perConcept[i] || 0) * 100), STYLES.percent);
+      if (hasDirectShare) setCell(ws, row, col++, Math.round((stdRes.direct.shareFirst.perConcept[i] || 0) * 100), STYLES.percent);
     }
     row++;
+  });
+  setCell(ws, row, startCol, 'Ни одно из них', STYLES.label);
+  if (mode === 'green') {
+    let col = startCol + 1;
+    if (hasDirectLike) setPercent(ws, row, col++, stdRes.direct.likeMost.none || 0, STYLES.percent);
+    if (hasDirectBuy) setPercent(ws, row, col++, stdRes.direct.buyFirst.none || 0, STYLES.percent);
+    if (hasDirectShare) setPercent(ws, row, col++, stdRes.direct.shareFirst.none || 0, STYLES.percent);
+  } else {
+    let col = startCol + 1;
+    if (hasDirectLike) setCell(ws, row, col++, Math.round((stdRes.direct.likeMost.none || 0) * 100), STYLES.percent);
+    if (hasDirectBuy) setCell(ws, row, col++, Math.round((stdRes.direct.buyFirst.none || 0) * 100), STYLES.percent);
+    if (hasDirectShare) setCell(ws, row, col++, Math.round((stdRes.direct.shareFirst.none || 0) * 100), STYLES.percent);
   }
-
-  return { endRow: row, endCol: lastCol };
+  row++;
+}
+return { endRow: row, endCol: lastCol };
 }
 
 function makeSignifSheetStyled(stdRes, concepts, signifRes) {
