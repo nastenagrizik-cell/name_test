@@ -13,7 +13,19 @@ let baseFile;
 let parsed = null;
 let autoMapping = null;
 let userConfig = null;
+function debugLine(...parts) {
+  const msg = parts.map(x => {
+    if (typeof x === 'string') return x;
+    try { return JSON.stringify(x); } catch (_) { return String(x); }
+  }).join(' ');
 
+  console.log('[DEBUG]', ...parts);
+
+  if (statusEl) {
+    const prev = statusEl.textContent || '';
+    statusEl.textContent = prev ? (prev + '\n[DEBUG] ' + msg) : ('[DEBUG] ' + msg);
+  }
+}
 if (typeof XLSX !== 'object') {
   if (statusEl) {
     statusEl.textContent = 'Ошибка: библиотека XLSX не загружена. Попробуйте обновить страницу.';
@@ -25,45 +37,76 @@ if (typeof XLSX !== 'object') {
     statusEl.className = 'status error';
   }
 } else {
-  baseInput.addEventListener('change', async e => {
-    baseFile = e.target.files[0] || null;
-    resetState();
+baseInput.addEventListener('change', async e => {
+  debugLine('change fired');
 
-    if (!baseFile) {
-      status('Файл не выбран');
-      return;
-    }
+  baseFile = e.target.files[0] || null;
+  debugLine('baseFile =', baseFile ? { name: baseFile.name, size: baseFile.size, type: baseFile.type } : null);
 
-    status('Читаю базу...\nЭто может занять до минуты.');
+  resetState();
+  debugLine('resetState done');
 
-    try {
-      const arrayBuffer = await baseFile.arrayBuffer();
-      const wb = XLSX.read(arrayBuffer, { type: 'array' });
+  if (!baseFile) {
+    status('Файл не выбран');
+    debugLine('no file selected');
+    return;
+  }
 
-      const sheetName = wb.SheetNames[wb.SheetNames.length - 1];
-      const sheet = wb.Sheets[sheetName];
-      const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  status('Читаю базу...\nЭто может занять до минуты.');
+  debugLine('starting read');
 
-      const { header, rows } = splitHeaderRows(data);
-      parsed = { header, rows };
+  try {
+    const arrayBuffer = await baseFile.arrayBuffer();
+    debugLine('arrayBuffer ok, bytes =', arrayBuffer.byteLength);
 
-      autoMapping = autoDetectMapping(header);
-      renderStandardMappingUI(autoMapping, header);
-      renderExtraQuestionsUI(autoMapping, header);
+    const wb = XLSX.read(arrayBuffer, { type: 'array' });
+    debugLine('xlsx read ok, sheets =', wb.SheetNames);
 
-      mappingSection.style.display = '';
-      extraSection.style.display = '';
-      runSection.style.display = '';
+    const sheetName = wb.SheetNames[wb.SheetNames.length - 1];
+    debugLine('selected sheet =', sheetName);
 
-      status(
-        'База загружена. Проверьте найденные вопросы и доп.метрики, затем нажмите «Посчитать топлайн».',
-        true
-      );
-    } catch (e) {
-      console.error(e);
-      status('Ошибка при чтении файла: ' + (e && e.message ? e.message : String(e)), false, true);
-    }
-  });
+    const sheet = wb.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    debugLine('sheet_to_json ok, rows =', data.length);
+
+    const { header, rows } = splitHeaderRows(data);
+    debugLine('splitHeaderRows ok, header len =', header.length, 'rows len =', rows.length);
+    debugLine('header sample =', header.slice(0, 8));
+
+    parsed = { header, rows };
+    debugLine('parsed assigned');
+
+    autoMapping = autoDetectMapping(header);
+    debugLine('autoDetectMapping ok', {
+      like: autoMapping.std.like.length,
+      fitDish: autoMapping.std.fitDish.length,
+      fitBrand: autoMapping.std.fitBrand.length,
+      visitBK: autoMapping.std.visitBK.length,
+      buyDish: autoMapping.std.buyDish.length,
+      image: autoMapping.std.image.length,
+      directLike: autoMapping.std.directLike.length,
+      directBuy: autoMapping.std.directBuy.length,
+      extraCandidates: autoMapping.extraCandidates.length
+    });
+
+    renderStandardMappingUI(autoMapping, header);
+    debugLine('renderStandardMappingUI ok');
+
+    renderExtraQuestionsUI(autoMapping, header);
+    debugLine('renderExtraQuestionsUI ok');
+
+    if (mappingSection) mappingSection.style.display = '';
+    if (extraSection) extraSection.style.display = '';
+    if (runSection) runSection.style.display = '';
+    debugLine('sections shown');
+
+    status('База загружена. Проверьте найденные вопросы и доп.метрики, затем нажмите «Посчитать топлайн».', true);
+  } catch (e) {
+    console.error(e);
+    debugLine('READ ERROR =', e && e.message ? e.message : String(e));
+    status('Ошибка при чтении файла: ' + (e && e.message ? e.message : String(e)), false, true);
+  }
+});
 
   runBtn.addEventListener('click', () => {
     if (!parsed || !autoMapping) {
