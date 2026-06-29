@@ -508,7 +508,10 @@ function autoDetectMapping(header) {
     const t = normalizeText(text);
     if (!text) return;
 
-    if (text.includes('Оцените, пожалуйста, насколько вам нравится или не нравится каждое из этих названий') || t.includes('нравится или не нравится каждое из этих названий')) {
+    if (
+      text.includes('Оцените, пожалуйста, насколько вам нравится или не нравится каждое из этих названий') ||
+      t.includes('нравится или не нравится каждое из этих названий')
+    ) {
       std.like.push(idx);
     }
 
@@ -516,15 +519,24 @@ function autoDetectMapping(header) {
       std.fitDish.push(idx);
     }
 
-    if (text.includes('А теперь оцените, насколько каждое из этих названий подходит или не подходит для бренда Бургер Кинг') || t.includes('подходит или не подходит для бренда бургер кинг')) {
+    if (
+      text.includes('А теперь оцените, насколько каждое из этих названий подходит или не подходит для бренда Бургер Кинг') ||
+      t.includes('подходит или не подходит для бренда бургер кинг')
+    ) {
       std.fitBrand.push(idx);
     }
 
-    if (text.includes('Скажите, насколько вероятно, что Вы посетите ресторан Бургер Кинг') || t.includes('насколько вероятно, что вы посетите ресторан бургер кинг')) {
+    if (
+      text.includes('Скажите, насколько вероятно, что Вы посетите ресторан Бургер Кинг') ||
+      t.includes('насколько вероятно, что вы посетите ресторан бургер кинг')
+    ) {
       std.visitBK.push(idx);
     }
 
-    if (text.includes('Для каждого названия укажите, насколько вероятно, что Вы купите') || t.includes('для каждого названия укажите, насколько вероятно, что вы купите')) {
+    if (
+      text.includes('Для каждого названия укажите, насколько вероятно, что Вы купите') ||
+      t.includes('для каждого названия укажите, насколько вероятно, что вы купите')
+    ) {
       std.buyDish.push(idx);
     }
 
@@ -533,11 +545,28 @@ function autoDetectMapping(header) {
     }
 
     const imageKey = detectImageStatementKey(text);
-    if (imageKey) std.image.push({ key: imageKey, idx });
+    if (imageKey) {
+      std.image.push({ key: imageKey, idx });
+    }
 
-    if (text.includes('Какое из перечисленных ниже названий')) std.directLike.push(idx);
-    if (text.includes('С каким из этих названий вы бы купили')) std.directBuy.push(idx);
-    if (looksLikeDirectShareQuestion(text)) std.directShare.push(idx);
+    if (
+      t.includes('какое из перечисленных ниже названий') ||
+      t.includes('какое из этих названий')
+    ) {
+      std.directLike.push(idx);
+    }
+
+    if (
+      t.includes('с каким из этих названий вы бы купили') ||
+      t.includes('с каким из этих названий вы купили бы') ||
+      (t.includes('с каким из этих названий') && t.includes('купили') && t.includes('в первую очередь'))
+    ) {
+      std.directBuy.push(idx);
+    }
+
+    if (looksLikeDirectShareQuestion(text)) {
+      std.directShare.push(idx);
+    }
 
     if (text.includes('Укажите Ваш пол')) std.audience.sex = idx;
     if (text.includes('Укажите Ваш возраст')) std.audience.age = idx;
@@ -585,7 +614,6 @@ function autoDetectMapping(header) {
 
   return { std, extraCandidates };
 }
-
 function renderStandardMappingUI(mapping, header) {
   const groups = [
     { key: 'like', label: 'Нравится название (шкала 1–5, Top‑2)', indexes: mapping.std.like },
