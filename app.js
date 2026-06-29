@@ -436,7 +436,7 @@ if (typeof XLSX !== 'object') {
       const { header, rows } = parsed;
       const concepts = inferConcepts(header, userConfig);
       const stdResults = calcStandardBlocks(rows, userConfig, concepts, header);
-      const extraResults = calcExtraBlocks(rows, userConfig);
+      const extraResults = calcExtraBlocks(rows, userConfig, concepts, header);
       const audienceRes = calcAudience(rows, userConfig);
       const signifRes = calcSignificance(stdResults, concepts, rows.length);
 
@@ -962,32 +962,57 @@ function calcStandardBlocks(rows, config, concepts, header) {
   };
 }
 
-function calcExtraBlocks(rows, config) {
+function calcExtraBlocks(rows, config, concepts, header) {
   const n = rows.length;
   const result = [];
 
   config.extra.forEach(q => {
     if (q.type === 'scale5') {
-      const counts = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
+      const conceptIndex = findConceptIndexByHeader(header[q.idx], concepts);
 
-      rows.forEach(r => {
-        const v = parseScaleValue(getCell(r, q.idx));
-        if (v >= 1 && v <= 5) counts[String(v)]++;
-      });
+      if (conceptIndex >= 0) {
+        const dists = Array.from({ length: concepts.length }, () => ({ '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 }));
 
-      result.push({
-        kind: 'scale5',
-        title: q.title,
-        where: q.where,
-        dist: {
-          '1': counts['1'] / n,
-          '2': counts['2'] / n,
-          '3': counts['3'] / n,
-          '4': counts['4'] / n,
-          '5': counts['5'] / n,
-          top2: (counts['4'] + counts['5']) / n
-        }
-      });
+        rows.forEach(r => {
+          const v = parseScaleValue(getCell(r, q.idx));
+          if (v >= 1 && v <= 5) dists[conceptIndex][String(v)]++;
+        });
+
+        result.push({
+          kind: 'scale5_by_concept',
+          title: q.title,
+          where: q.where,
+          dist: dists.map(counts => ({
+            '1': counts['1'] / n,
+            '2': counts['2'] / n,
+            '3': counts['3'] / n,
+            '4': counts['4'] / n,
+            '5': counts['5'] / n,
+            top2: (counts['4'] + counts['5']) / n
+          }))
+        });
+      } else {
+        const counts = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
+
+        rows.forEach(r => {
+          const v = parseScaleValue(getCell(r, q.idx));
+          if (v >= 1 && v <= 5) counts[String(v)]++;
+        });
+
+        result.push({
+          kind: 'scale5',
+          title: q.title,
+          where: q.where,
+          dist: {
+            '1': counts['1'] / n,
+            '2': counts['2'] / n,
+            '3': counts['3'] / n,
+            '4': counts['4'] / n,
+            '5': counts['5'] / n,
+            top2: (counts['4'] + counts['5']) / n
+          }
+        });
+      }
     } else {
       const counts = {};
 
@@ -1384,7 +1409,22 @@ function makeFullSheetStyled(stdRes, concepts, extraResults = []) {
       mergeRange(ws, row, 0, row, lastCol);
       row++;
 
-      if (item.kind === 'scale5') {
+      if (item.kind === 'scale5_by_concept') {
+        [
+          ['ТОП-2 (4+5)', item.dist.map(d => d.top2), 'top2'],
+          ['1', item.dist.map(d => d['1']), '1'],
+          ['2', item.dist.map(d => d['2']), '2'],
+          ['3', item.dist.map(d => d['3']), '3'],
+          ['4', item.dist.map(d => d['4']), '4'],
+          ['5', item.dist.map(d => d['5']), '5']
+        ].forEach(([label, values, level]) => {
+          setCell(ws, row, 0, label, level === 'top2' ? STYLES.top2Label : STYLES.label);
+          values.forEach((value, i) => {
+            setPercent(ws, row, i + 1, value, level === 'top2' ? STYLES.top2Row : STYLES.percent);
+          });
+          row++;
+        });
+      } else if (item.kind === 'scale5') {
         [
           ['ТОП-2 (4+5)', item.dist.top2],
           ['1', item.dist['1']],
@@ -1416,13 +1456,17 @@ function makeFullSheetStyled(stdRes, concepts, extraResults = []) {
   const hasDirectShare = !!stdRes.direct.shareFirst;
 
   if (hasDirectLike || hasDirectBuy || hasDirectShare) {
+    const directCols = 1 + (hasDirectLike ? 1 : 0) + (hasDirectBuy ? 1 : 0) + (hasDirectShare ? 1 : 0);
+
     setCell(ws, row, 0, 'ПРЯМОЕ СРАВНЕНИЕ', STYLES.section);
-    mergeRange(ws, row, 0, row, 2);
+    mergeRange(ws, row, 0, row, directCols - 1);
     row++;
 
     setCell(ws, row, 0, 'Название', STYLES.headerCenter);
-    if (hasDirectLike) setCell(ws, row, 1, 'Нравится больше всего', STYLES.headerCenter);
-    if (hasDirectBuy) setCell(ws, row, hasDirectLike ? 2 : 1, 'Куплю в первую очередь', STYLES.headerCenter);
+    let headerCol = 1;
+    if (hasDirectLike) setCell(ws, row, headerCol++, 'Нравится больше всего', STYLES.headerCenter);
+    if (hasDirectBuy) setCell(ws, row, headerCol++, 'Куплю в первую очередь', STYLES.headerCenter);
+    if (hasDirectShare) setCell(ws, row, headerCol++, 'Рассказал(а) бы в первую очередь', STYLES.headerCenter);
     row++;
 
     concepts.forEach((c, i) => {
@@ -1434,6 +1478,10 @@ function makeFullSheetStyled(stdRes, concepts, extraResults = []) {
       }
       if (hasDirectBuy) {
         setPercent(ws, row, col, stdRes.direct.buyFirst.perConcept[i] || 0, STYLES.percent);
+        col++;
+      }
+      if (hasDirectShare) {
+        setPercent(ws, row, col, stdRes.direct.shareFirst.perConcept[i] || 0, STYLES.percent);
       }
       row++;
     });
@@ -1446,10 +1494,14 @@ function makeFullSheetStyled(stdRes, concepts, extraResults = []) {
     }
     if (hasDirectBuy) {
       setPercent(ws, row, col, stdRes.direct.buyFirst.none || 0, STYLES.percent);
+      col++;
+    }
+    if (hasDirectShare) {
+      setPercent(ws, row, col, stdRes.direct.shareFirst.none || 0, STYLES.percent);
     }
   }
 
-  applySheetRangeRef(ws, row, Math.max(lastCol, 2));
+  applySheetRangeRef(ws, row, Math.max(lastCol, 3));
   return ws;
 }
 
@@ -1541,13 +1593,17 @@ function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, m
   const hasDirectShare = !!stdRes.direct.shareFirst;
 
   if (hasDirectLike || hasDirectBuy || hasDirectShare) {
+    const directCols = 1 + (hasDirectLike ? 1 : 0) + (hasDirectBuy ? 1 : 0) + (hasDirectShare ? 1 : 0);
+
     setCell(ws, row, startCol, 'ПРЯМОЕ СРАВНЕНИЕ', STYLES.section);
-    mergeRange(ws, row, startCol, row, startCol + 2);
+    mergeRange(ws, row, startCol, row, startCol + directCols - 1);
     row++;
 
     setCell(ws, row, startCol, 'Название', STYLES.headerCenter);
-    if (hasDirectLike) setCell(ws, row, startCol + 1, 'Нравится больше всего', STYLES.headerCenter);
-    if (hasDirectBuy) setCell(ws, row, startCol + (hasDirectLike ? 2 : 1), 'Куплю в первую очередь', STYLES.headerCenter);
+    let headerCol = startCol + 1;
+    if (hasDirectLike) setCell(ws, row, headerCol++, 'Нравится больше всего', STYLES.headerCenter);
+    if (hasDirectBuy) setCell(ws, row, headerCol++, 'Куплю в первую очередь', STYLES.headerCenter);
+    if (hasDirectShare) setCell(ws, row, headerCol++, 'Рассказал(а) бы в первую очередь', STYLES.headerCenter);
     row++;
 
     concepts.forEach((c, i) => {
@@ -1561,6 +1617,10 @@ function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, m
         }
         if (hasDirectBuy) {
           setPercent(ws, row, col, stdRes.direct.buyFirst.perConcept[i] || 0, signifRes.directMax.buyFirst?.[i] ? STYLES.percentGreen : STYLES.percent);
+          col++;
+        }
+        if (hasDirectShare) {
+          setPercent(ws, row, col, stdRes.direct.shareFirst.perConcept[i] || 0, signifRes.directMax.shareFirst?.[i] ? STYLES.percentGreen : STYLES.percent);
         }
       } else {
         let col = startCol + 1;
@@ -1570,6 +1630,10 @@ function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, m
         }
         if (hasDirectBuy) {
           setCell(ws, row, col, Math.round((stdRes.direct.buyFirst.perConcept[i] || 0) * 100) + '%', STYLES.percent);
+          col++;
+        }
+        if (hasDirectShare) {
+          setCell(ws, row, col, Math.round((stdRes.direct.shareFirst.perConcept[i] || 0) * 100) + '%', STYLES.percent);
         }
       }
 
@@ -1585,6 +1649,10 @@ function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, m
       }
       if (hasDirectBuy) {
         setPercent(ws, row, col, stdRes.direct.buyFirst.none || 0, STYLES.percent);
+        col++;
+      }
+      if (hasDirectShare) {
+        setPercent(ws, row, col, stdRes.direct.shareFirst.none || 0, STYLES.percent);
       }
     } else {
       let col = startCol + 1;
@@ -1594,6 +1662,10 @@ function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, m
       }
       if (hasDirectBuy) {
         setCell(ws, row, col, Math.round((stdRes.direct.buyFirst.none || 0) * 100) + '%', STYLES.percent);
+        col++;
+      }
+      if (hasDirectShare) {
+        setCell(ws, row, col, Math.round((stdRes.direct.shareFirst.none || 0) * 100) + '%', STYLES.percent);
       }
     }
     row++;
