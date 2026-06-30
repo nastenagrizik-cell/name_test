@@ -1265,7 +1265,11 @@ const STYLES = {
   signifTextGreen: { font: { bold: true, color: { rgb: '000000' } }, alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('70AD47'), border: borderAll() },
   legendGreen: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('92D050'), border: borderAll() },
   legendAccent: { font: { bold: true, color: { rgb: 'C55A11' } }, alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('FFF2CC'), border: borderAll() },
-  legendText: { alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: borderAll() }
+  legendText: { alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: borderAll() },
+ageGroupTotal: { font: { bold: true }, fill: hexFill('DCE6F1'), alignment: { horizontal: 'left', vertical: 'center' }, border: borderAll() },
+  ageGroup: { alignment: { horizontal: 'left', vertical: 'center' }, border: borderAll() },
+  percentAgeUp: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('E2F0D9'), font: { color: { rgb: '2E7D32' }, bold: true }, border: borderAll() },
+  percentAgeDown: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('FDE9E7'), font: { color: { rgb: 'C00000' }, bold: true }, border: borderAll() }
 };
 
 function isStrong2Plus(arr, index) {
@@ -1790,4 +1794,117 @@ function writeAudienceBlock(ws, startRow, sectionTitle, blocks) {
   });
 
   return row;
+}
+function ageCellStyle(direction, isTotal = false) {
+  if (isTotal) return STYLES.top2Row;
+  if (direction === 'up') return STYLES.percentAgeUp;
+  if (direction === 'down') return STYLES.percentAgeDown;
+  return STYLES.percent;
+}
+
+function makeAgeBreaksSheetStyled(ageRes, concepts) {
+  const ws = {};
+  const lastCol = 1 + concepts.length;
+  ws['!cols'] = [{ wch: 40 }, { wch: 12 }, ...Array.from({ length: concepts.length }, () => ({ wch: 15 }))];
+
+  let row = 0;
+  setCell(ws, row, 0, 'ВОЗРАСТНЫЕ РАЗБИВКИ', STYLES.title);
+  mergeRange(ws, row, 0, row, lastCol);
+  row++;
+
+  setCell(ws, row, 0, `База total: n=${ageRes.byGroup.total.n} | строки: Total, 18-24, 25-34, 35-44, 45+ | значения в %`, STYLES.base);
+  mergeRange(ws, row, 0, row, lastCol);
+  row++;
+
+  setCell(ws, row, 0, 'Легенда', STYLES.headerCenter);
+  setCell(ws, row, 1, 'xx', STYLES.percentAgeUp);
+  setCell(ws, row, 2, 'значимо выше Total', STYLES.legendText);
+  if (lastCol >= 3) mergeRange(ws, row, 2, row, 3);
+  if (lastCol >= 4) {
+    setCell(ws, row, 4, 'xx', STYLES.percentAgeDown);
+    setCell(ws, row, 5, 'значимо ниже Total', STYLES.legendText);
+    if (lastCol >= 5) mergeRange(ws, row, 5, row, lastCol);
+  }
+  row++;
+
+  setCell(ws, row, 0, 'Показатель', STYLES.headerCenter);
+  setCell(ws, row, 1, 'Возраст', STYLES.headerCenter);
+  concepts.forEach((c, i) => setCell(ws, row, i + 2, c.label, STYLES.headerCenter));
+  row++;
+
+  const metricOrder = [
+    ['Нравится название', 'like'],
+    ['Подходит для блюда / продукта', 'fitDish'],
+    ['Подходит для бренда', 'fitBrand'],
+    ['Намерение посетить БК', 'visitBK'],
+    ['Намерение купить', 'buyDish'],
+    ['Намерение рассказать / поделиться', 'shareIntent']
+  ];
+
+  metricOrder.forEach(([label, key]) => {
+    if (!ageRes.byGroup.total?.top2?.[key]) return;
+    ageRes.groups.forEach((g, idx) => {
+      const vals = ageRes.byGroup[g.key]?.top2?.[key];
+      if (!vals) return;
+      setCell(ws, row, 0, idx === 0 ? label : '', STYLES.label);
+      setCell(ws, row, 1, g.label, g.key === 'total' ? STYLES.ageGroupTotal : STYLES.ageGroup);
+      vals.forEach((v, i) => {
+        const dir = g.key === 'total' ? null : ageRes.significance.metrics?.[key]?.[g.key]?.[i];
+        setPercent(ws, row, i + 2, v, ageCellStyle(dir, g.key === 'total'));
+      });
+      row++;
+    });
+    row++;
+  });
+
+  const hasDirectLike = !!ageRes.byGroup.total?.direct?.likeMost;
+  const hasDirectBuy = !!ageRes.byGroup.total?.direct?.buyFirst;
+  const hasDirectShare = !!ageRes.byGroup.total?.direct?.shareFirst;
+
+  if (hasDirectLike || hasDirectBuy || hasDirectShare) {
+    const directMap = [];
+    if (hasDirectLike) directMap.push(['Нравится больше всего', 'likeMost']);
+    if (hasDirectBuy) directMap.push(['Куплю в первую очередь', 'buyFirst']);
+    if (hasDirectShare) directMap.push(['Рассказал(а) бы в первую очередь', 'shareFirst']);
+
+    directMap.forEach(([label, key]) => {
+      ageRes.groups.forEach((g, idx) => {
+        const vals = ageRes.byGroup[g.key]?.direct?.[key]?.perConcept;
+        if (!vals) return;
+        setCell(ws, row, 0, idx === 0 ? label : '', STYLES.label);
+        setCell(ws, row, 1, g.label, g.key === 'total' ? STYLES.ageGroupTotal : STYLES.ageGroup);
+        vals.forEach((v, i) => {
+          const dir = g.key === 'total' ? null : ageRes.significance.direct?.[key]?.[g.key]?.[i];
+          setPercent(ws, row, i + 2, v, ageCellStyle(dir, g.key === 'total'));
+        });
+        row++;
+      });
+      row++;
+    });
+  }
+
+  const imageEntries = Object.entries(ageRes.byGroup.total?.image || {});
+  if (imageEntries.length) {
+    setCell(ws, row, 0, 'Имиджевые высказывания', STYLES.section);
+    mergeRange(ws, row, 0, row, lastCol);
+    row++;
+
+    imageEntries.forEach(([label]) => {
+      ageRes.groups.forEach((g, idx) => {
+        const vals = ageRes.byGroup[g.key]?.image?.[label];
+        if (!vals) return;
+        setCell(ws, row, 0, idx === 0 ? label : '', STYLES.label);
+        setCell(ws, row, 1, g.label, g.key === 'total' ? STYLES.ageGroupTotal : STYLES.ageGroup);
+        vals.forEach((v, i) => {
+          const dir = g.key === 'total' ? null : ageRes.significance.image?.[label]?.[g.key]?.[i];
+          setPercent(ws, row, i + 2, v, ageCellStyle(dir, g.key === 'total'));
+        });
+        row++;
+      });
+      row++;
+    });
+  }
+
+  applySheetRangeRef(ws, row, lastCol);
+  return ws;
 }
