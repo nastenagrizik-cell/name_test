@@ -1266,7 +1266,8 @@ const STYLES = {
   legendGreen: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('92D050'), border: borderAll() },
   legendAccent: { font: { bold: true, color: { rgb: 'C55A11' } }, alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('FFF2CC'), border: borderAll() },
   legendText: { alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: borderAll() },
-ageGroupTotal: { font: { bold: true }, fill: hexFill('DCE6F1'), alignment: { horizontal: 'left', vertical: 'center' }, border: borderAll() },
+
+  ageGroupTotal: { font: { bold: true }, fill: hexFill('DCE6F1'), alignment: { horizontal: 'left', vertical: 'center' }, border: borderAll() },
   ageGroup: { alignment: { horizontal: 'left', vertical: 'center' }, border: borderAll() },
   percentAgeUp: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('E2F0D9'), font: { color: { rgb: '2E7D32' }, bold: true }, border: borderAll() },
   percentAgeDown: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('FDE9E7'), font: { color: { rgb: 'C00000' }, bold: true }, border: borderAll() }
