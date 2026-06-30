@@ -7,8 +7,6 @@ const runSection = document.getElementById('runSection');
 const standardGroupsEl = document.getElementById('standardGroups');
 const extraQuestionsEl = document.getElementById('extraQuestions');
 const runBtn = document.getElementById('runBtn');
-const ageBreakdownToggle = document.getElementById('ageBreakdownToggle');
-const ageBreakdownHint = document.getElementById('ageBreakdownHint');
 
 let baseFile;
 let parsed = null;
@@ -21,17 +19,12 @@ function debugLine(...parts) {
     try { return JSON.stringify(x); } catch (_) { return String(x); }
   }).join(' ');
 
-  if (window.TOPLINE_DEBUG) console.log('[DEBUG]', ...parts);
+  console.log('[DEBUG]', ...parts);
 
-  if (window.TOPLINE_DEBUG && statusEl) {
+  if (statusEl) {
     const prev = statusEl.textContent || '';
     statusEl.textContent = prev ? (prev + '\n[DEBUG] ' + msg) : ('[DEBUG] ' + msg);
   }
-}
-
-
-function waitForUI() {
-  return new Promise(resolve => setTimeout(resolve, 0));
 }
 
 function normalizeText(s) {
@@ -363,31 +356,17 @@ if (typeof XLSX !== 'object') {
     debugLine('starting read');
 
     try {
-      await waitForUI();
       const arrayBuffer = await baseFile.arrayBuffer();
       debugLine('arrayBuffer ok, bytes =', arrayBuffer.byteLength);
 
-      status('Файл прочитан. Разбираю Excel...');
-      await waitForUI();
-      const wb = XLSX.read(arrayBuffer, {
-        type: 'array',
-        cellStyles: false,
-        cellNF: false,
-        cellHTML: false,
-        cellFormula: false,
-        cellDates: false,
-        sheetStubs: false,
-        WTF: false
-      });
+      const wb = XLSX.read(arrayBuffer, { type: 'array' });
       debugLine('xlsx read ok, sheets =', wb.SheetNames);
 
       const sheetName = wb.SheetNames[wb.SheetNames.length - 1];
       debugLine('selected sheet =', sheetName);
 
-      status('Excel разобран. Читаю лист: ' + sheetName + '...');
-      await waitForUI();
       const sheet = wb.Sheets[sheetName];
-      const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true });
+      const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
       debugLine('sheet_to_json ok, rows =', data.length);
 
       const { header, rows } = splitHeaderRows(data);
@@ -397,8 +376,6 @@ if (typeof XLSX !== 'object') {
       parsed = { header, rows };
       debugLine('parsed assigned');
 
-      status('Определяю стандартные и дополнительные метрики...');
-      await waitForUI();
       autoMapping = autoDetectMapping(header);
       debugLine('autoDetectMapping ok = ' + JSON.stringify({
         like: autoMapping.std.like.length,
@@ -420,12 +397,9 @@ if (typeof XLSX !== 'object') {
       debugLine('matched shareIntent headers = ' + JSON.stringify(autoMapping.std.shareIntent.map(i => header[i]).slice(0, 5)));
       debugLine('matched extra headers = ' + JSON.stringify(autoMapping.extraCandidates.map(x => x.header).slice(0, 10)));
 
-      status('Готовлю экран проверки найденных вопросов...');
-      await waitForUI();
       renderStandardMappingUI(autoMapping, header);
       debugLine('renderStandardMappingUI ok');
 
-      await waitForUI();
       renderExtraQuestionsUI(autoMapping, header);
       debugLine('renderExtraQuestionsUI ok');
 
@@ -465,15 +439,11 @@ if (typeof XLSX !== 'object') {
       const extraResults = calcExtraBlocks(rows, userConfig, concepts, header);
       const audienceRes = calcAudience(rows, userConfig);
       const signifRes = calcSignificance(stdResults, concepts, rows.length);
-      const ageBreakdownRes = userConfig.includeAgeBreakdown
-        ? calcAgeBreakdowns(rows, userConfig, concepts, header, extraResults)
-        : null;
 
       const outWb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(outWb, makeSummarySheetStyled(stdResults, concepts, signifRes, extraResults), 'САММАРИ');
       XLSX.utils.book_append_sheet(outWb, makeFullSheetStyled(stdResults, concepts, extraResults), 'полные таблицы');
       XLSX.utils.book_append_sheet(outWb, makeSignifSheetStyled(stdResults, concepts, signifRes), 'значимости');
-      if (ageBreakdownRes) XLSX.utils.book_append_sheet(outWb, makeAgeBreakdownSheetStyled(ageBreakdownRes, concepts), 'Возрастные разбивки');
       XLSX.utils.book_append_sheet(outWb, makeAudienceSheetStyled(audienceRes), 'Аудитория');
 
       const outName = 'Topline_' + (baseFile.name.replace(/\.[^.]+$/, '') || 'output') + '.xlsx';
@@ -644,66 +614,40 @@ function autoDetectMapping(header) {
 
   return { std, extraCandidates };
 }
-
-function compactLabelFromHeader(text) {
-  const parts = String(text || '').split(' - ');
-  return parts.length > 1 ? parts[parts.length - 1].trim() : String(text || '').trim();
-}
-
 function renderStandardMappingUI(mapping, header) {
   const groups = [
-    { key: 'like', label: 'Нравится название', desc: 'шкала 1–5, Top‑2', indexes: mapping.std.like, countMode: 'concepts' },
-    { key: 'fitDish', label: 'Подходит для блюда / продукта', desc: 'шкала 1–5, Top‑2', indexes: mapping.std.fitDish, countMode: 'concepts' },
-    { key: 'fitBrand', label: 'Подходит для бренда', desc: 'шкала 1–5, Top‑2', indexes: mapping.std.fitBrand, countMode: 'concepts' },
-    { key: 'visitBK', label: 'Намерение посетить БК', desc: 'шкала 1–5, Top‑2', indexes: mapping.std.visitBK, countMode: 'concepts' },
-    { key: 'buyDish', label: 'Намерение купить', desc: 'шкала 1–5, Top‑2', indexes: mapping.std.buyDish, countMode: 'concepts' },
-    { key: 'shareIntent', label: 'Намерение рассказать / поделиться', desc: 'шкала 1–5, Top‑2', indexes: mapping.std.shareIntent, countMode: 'concepts' },
-    { key: 'directCompare', label: 'Прямое сравнение', desc: 'single choice', indexes: [...mapping.std.directLike, ...mapping.std.directBuy, ...mapping.std.directShare], countMode: 'questions' }
+    { key: 'like', label: 'Нравится название (шкала 1–5, Top‑2)', indexes: mapping.std.like },
+    { key: 'fitDish', label: 'Подходит для блюда / продукта (шкала 1–5, Top‑2)', indexes: mapping.std.fitDish },
+    { key: 'fitBrand', label: 'Подходит для бренда (шкала 1–5, Top‑2)', indexes: mapping.std.fitBrand },
+    { key: 'visitBK', label: 'Намерение посетить БК (шкала 1–5, Top‑2)', indexes: mapping.std.visitBK },
+    { key: 'buyDish', label: 'Намерение купить (шкала 1–5, Top‑2)', indexes: mapping.std.buyDish },
+    { key: 'shareIntent', label: 'Намерение рассказать / поделиться (шкала 1–5, Top‑2)', indexes: mapping.std.shareIntent },
+    { key: 'directCompare', label: 'Прямое сравнение', indexes: [...mapping.std.directLike, ...mapping.std.directBuy, ...mapping.std.directShare] }
   ];
 
   standardGroupsEl.innerHTML = '';
-  standardGroupsEl.classList.add('compact-grid');
 
   groups.forEach(group => {
-    const card = document.createElement('div');
-    card.className = 'metric-card';
+    const col = document.createElement('div');
+    col.className = 'col-half mapping-group';
 
-    const foundCount = group.countMode === 'concepts'
-      ? new Set(group.indexes.map(idx => compactLabelFromHeader(header[idx]))).size
-      : group.indexes.length;
-    const foundText = group.countMode === 'concepts'
-      ? `найдено названий: ${foundCount}`
-      : `найдено вопросов: ${foundCount}`;
+    const title = document.createElement('div');
+    title.className = 'mapping-group-title';
+    title.textContent = group.label;
+    col.appendChild(title);
 
-    const badgeClass = group.indexes.length ? 'ok' : 'warn';
-    const preview = group.indexes.length ? header[group.indexes[0]] : 'Колонки не найдены по ключевым словам';
-
-    card.innerHTML = `
-      <div class="metric-top">
-        <div>
-          <div class="metric-title">${group.label}</div>
-          <div class="muted-note">${group.desc}</div>
-        </div>
-        <div class="metric-badges"><span class="badge ${badgeClass}">${foundText}</span></div>
-      </div>
-      <div class="question-preview">${preview}</div>
-    `;
-
-    const details = document.createElement('details');
-    details.className = 'metric-details';
-    details.innerHTML = `<summary>Проверить найденные колонки</summary>`;
     const list = document.createElement('div');
-    list.className = 'mini-list';
+    list.className = 'mapping-list';
 
     if (!group.indexes.length) {
       const empty = document.createElement('div');
-      empty.className = 'mini-item';
-      empty.innerHTML = '<small>Ничего не найдено. Метрика не будет рассчитана.</small>';
+      empty.className = 'mapping-item';
+      empty.innerHTML = 'Колонки не найдены по ключевым словам';
       list.appendChild(empty);
     } else {
       group.indexes.forEach(idx => {
         const item = document.createElement('div');
-        item.className = 'mini-item';
+        item.className = 'mapping-item';
         const id = `std-${group.key}-${idx}`;
         let stdKey = group.key;
 
@@ -721,67 +665,9 @@ function renderStandardMappingUI(mapping, header) {
       });
     }
 
-    details.appendChild(list);
-    card.appendChild(details);
-    standardGroupsEl.appendChild(card);
+    col.appendChild(list);
+    standardGroupsEl.appendChild(col);
   });
-
-  const imageByKey = {};
-  (mapping.std.image || []).forEach(item => {
-    if (!imageByKey[item.key]) imageByKey[item.key] = [];
-    imageByKey[item.key].push(item.idx);
-  });
-
-  const imageCard = document.createElement('div');
-  imageCard.className = 'metric-card';
-  const imageKeys = Object.keys(imageByKey);
-  const imageCols = (mapping.std.image || []).length;
-  imageCard.innerHTML = `
-    <div class="metric-top">
-      <div>
-        <div class="metric-title">Имиджевые высказывания</div>
-        <div class="muted-note">multiselect / чекбоксы по названиям</div>
-      </div>
-      <div class="metric-badges"><span class="badge ${imageCols ? 'ok' : 'warn'}">высказываний: ${imageKeys.length}</span><span class="badge info">колонок: ${imageCols}</span></div>
-    </div>
-    <div class="question-preview">${imageKeys.length ? imageKeys.slice(0, 3).join(' · ') : 'Колонки не найдены'}</div>
-  `;
-  const imageDetails = document.createElement('details');
-  imageDetails.className = 'metric-details';
-  imageDetails.innerHTML = '<summary>Проверить имиджевые высказывания</summary>';
-  const imageList = document.createElement('div');
-  imageList.className = 'mini-list';
-  if (!imageKeys.length) {
-    imageList.innerHTML = '<div class="mini-item"><small>Имиджевые высказывания не найдены.</small></div>';
-  } else {
-    imageKeys.forEach(key => {
-      const item = document.createElement('div');
-      item.className = 'mini-item';
-      item.innerHTML = `<small><b>${key}</b> — колонок: ${imageByKey[key].length}</small>`;
-      imageList.appendChild(item);
-    });
-  }
-  imageDetails.appendChild(imageList);
-  imageCard.appendChild(imageDetails);
-  standardGroupsEl.appendChild(imageCard);
-
-  updateAgeBreakdownToggle(mapping);
-}
-
-function makeExtraStem(headerText) {
-  const parts = String(headerText || '').split(' - ');
-  return (parts.length > 1 ? parts.slice(0, -1).join(' - ') : parts[0]).trim();
-}
-
-function groupExtraCandidates(candidates) {
-  const groupsByStem = new Map();
-  candidates.forEach(q => {
-    const stem = makeExtraStem(q.header) || q.header;
-    const key = normalizeText(stem);
-    if (!groupsByStem.has(key)) groupsByStem.set(key, { id: 'extra_' + groupsByStem.size, stem, items: [] });
-    groupsByStem.get(key).items.push(q);
-  });
-  return Array.from(groupsByStem.values());
 }
 
 function renderExtraQuestionsUI(mapping) {
@@ -789,53 +675,32 @@ function renderExtraQuestionsUI(mapping) {
 
   if (!mapping.extraCandidates.length) {
     extraQuestionsEl.innerHTML = '<div class="status">Дополнительные закрытые вопросы не найдены.</div>';
-    mapping.extraGroups = [];
     return;
   }
 
-  const groups = groupExtraCandidates(mapping.extraCandidates);
-  mapping.extraGroups = groups;
-
-  const intro = document.createElement('div');
-  intro.className = 'status';
-  intro.textContent = `Найдено дополнительных блоков: ${groups.length}. Для блоков с несколькими колонками достаточно один раз задать название метрики.`;
-  extraQuestionsEl.appendChild(intro);
-
-  groups.forEach(group => {
+  mapping.extraCandidates.forEach(q => {
     const wrap = document.createElement('div');
     wrap.className = 'card';
     wrap.style.marginBottom = '1rem';
-    wrap.setAttribute('data-extra-group-id', group.id);
 
-    const firstHeader = group.items[0]?.header || group.stem;
     wrap.innerHTML = `
-      <div class="metric-top">
-        <div>
-          <label style="display:flex;gap:8px;align-items:flex-start;font-weight:800;">
-            <input type="checkbox" data-extra-group-enabled="${group.id}" checked style="margin-top:3px;accent-color:var(--primary-2);">
-            Использовать как доп.метрику
-          </label>
-          <div class="question-preview" style="margin-top:6px;">${group.stem}</div>
-        </div>
-        <div class="metric-badges"><span class="badge info">колонок: ${group.items.length}</span></div>
+      <div class="field">
+        <label>
+          <input type="checkbox" data-extra-idx="${q.idx}" checked>
+          Использовать этот вопрос как доп.метрику
+        </label>
+        <div><small>${q.header}</small></div>
       </div>
 
-      <details class="metric-details">
-        <summary>Показать найденные колонки</summary>
-        <div class="mini-list">
-          ${group.items.map(q => `<div class="mini-item"><small>${q.header}</small></div>`).join('')}
-        </div>
-      </details>
-
-      <div class="row" style="margin-top:12px;">
+      <div class="row">
         <div class="col-half">
           <div class="field">
             <label>Название метрики в топлайне</label>
-            <input type="text" data-extra-group-title="${group.id}" placeholder="Напр. Осведомленность">
+            <input type="text" data-extra-idx="${q.idx}" data-role="title" placeholder="Напр. Осведомленность">
           </div>
           <div class="field">
             <label>Тип вопроса</label>
-            <select data-extra-group-type="${group.id}">
+            <select data-extra-idx="${q.idx}" data-role="type">
               <option value="scale5">Шкала 1–5</option>
               <option value="single">Single choice</option>
             </select>
@@ -844,11 +709,10 @@ function renderExtraQuestionsUI(mapping) {
         <div class="col-half">
           <div class="field">
             <label>Куда выводить</label>
-            <div class="pill-checkboxes" data-extra-group-where="${group.id}">
+            <div class="pill-checkboxes" data-extra-idx="${q.idx}" data-role="where">
               <label><input type="checkbox" value="summary" checked> САММАРИ</label>
               <label><input type="checkbox" value="full" checked> полные таблицы</label>
               <label><input type="checkbox" value="signif"> значимости</label>
-              <label><input type="checkbox" value="age" checked> возрастные разбивки</label>
             </div>
           </div>
         </div>
@@ -857,19 +721,6 @@ function renderExtraQuestionsUI(mapping) {
 
     extraQuestionsEl.appendChild(wrap);
   });
-}
-
-
-function updateAgeBreakdownToggle(mapping) {
-  if (!ageBreakdownToggle) return;
-  const hasAge = !!(mapping && mapping.std && mapping.std.audience && mapping.std.audience.age != null);
-  ageBreakdownToggle.disabled = !hasAge;
-  ageBreakdownToggle.checked = hasAge;
-  if (ageBreakdownHint) {
-    ageBreakdownHint.textContent = hasAge
-      ? 'Лист будет построен по возрастам 18–24, 25–34, 35–44 и 45+ с подсветкой значимых отличий от Total.'
-      : 'Возрастный вопрос не найден — лист с возрастными разбивками недоступен.';
-  }
 }
 
 function collectUserConfig(mapping) {
@@ -895,62 +746,30 @@ function collectUserConfig(mapping) {
   });
 
   const extra = [];
-  const extraGroups = mapping.extraGroups || [];
 
-  if (extraGroups.length) {
-    extraGroups.forEach(group => {
-      const enabledCb = document.querySelector(`input[type="checkbox"][data-extra-group-enabled="${group.id}"]`);
-      if (!enabledCb || !enabledCb.checked) return;
+  mapping.extraCandidates.forEach(q => {
+    const enabledCb = document.querySelector(`input[type="checkbox"][data-extra-idx="${q.idx}"]`);
+    if (!enabledCb || !enabledCb.checked) return;
 
-      const titleInput = document.querySelector(`input[data-extra-group-title="${group.id}"]`);
-      const typeSelect = document.querySelector(`select[data-extra-group-type="${group.id}"]`);
-      const whereWrap = document.querySelector(`div[data-extra-group-where="${group.id}"]`);
+    const titleInput = document.querySelector(`input[data-extra-idx="${q.idx}"][data-role="title"]`);
+    const typeSelect = document.querySelector(`select[data-extra-idx="${q.idx}"][data-role="type"]`);
+    const whereWrap = document.querySelector(`div[data-extra-idx="${q.idx}"][data-role="where"]`);
 
-      const title = (titleInput?.value || '').trim();
-      if (!title) throw new Error('У доп.вопроса "' + group.stem + '" не задано название метрики.');
+    const title = (titleInput?.value || '').trim();
+    if (!title) throw new Error('У доп.вопроса "' + q.header + '" не задано название метрики.');
 
-      const qtype = typeSelect?.value || 'scale5';
-      const where = [];
-      whereWrap.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-        if (cb.checked) where.push(cb.value);
-      });
-      if (!where.length) throw new Error('У доп.метрики "' + title + '" не выбрано, куда выводить.');
-
-      group.items.forEach(q => {
-        extra.push({ idx: q.idx, header: q.header, title, type: qtype, where });
-      });
+    const qtype = typeSelect?.value || 'scale5';
+    const where = [];
+    whereWrap.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      if (cb.checked) where.push(cb.value);
     });
-  } else {
-    mapping.extraCandidates.forEach(q => {
-      const enabledCb = document.querySelector(`input[type="checkbox"][data-extra-idx="${q.idx}"]`);
-      if (!enabledCb || !enabledCb.checked) return;
 
-      const titleInput = document.querySelector(`input[data-extra-idx="${q.idx}"][data-role="title"]`);
-      const typeSelect = document.querySelector(`select[data-extra-idx="${q.idx}"][data-role="type"]`);
-      const whereWrap = document.querySelector(`div[data-extra-idx="${q.idx}"][data-role="where"]`);
+    if (!where.length) throw new Error('У доп.метрики "' + title + '" не выбрано, куда выводить.');
 
-      const title = (titleInput?.value || '').trim();
-      if (!title) throw new Error('У доп.вопроса "' + q.header + '" не задано название метрики.');
+    extra.push({ idx: q.idx, header: q.header, title, type: qtype, where });
+  });
 
-      const qtype = typeSelect?.value || 'scale5';
-      const where = [];
-      whereWrap.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-        if (cb.checked) where.push(cb.value);
-      });
-      if (!where.length) throw new Error('У доп.метрики "' + title + '" не выбрано, куда выводить.');
-
-      extra.push({ idx: q.idx, header: q.header, title, type: qtype, where });
-    });
-  }
-
-  const includeAgeBreakdown = !!(
-    ageBreakdownToggle &&
-    !ageBreakdownToggle.disabled &&
-    ageBreakdownToggle.checked &&
-    mapping.std.audience.age != null
-  );
-
-  return { std: stdSelected, extra, includeAgeBreakdown };
+  return { std: stdSelected, extra };
 }
 
 function inferConcepts(header, config) {
@@ -1355,16 +1174,10 @@ const STYLES = {
   top2Row: { font: { bold: true }, fill: hexFill('DCE6F1'), alignment: { horizontal: 'center', vertical: 'center' }, border: borderAll() },
   percent: { alignment: { horizontal: 'center', vertical: 'center' }, border: borderAll() },
   percentGreen: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('70AD47'), border: borderAll() },
-  percentAgeGreen: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('D9EAD3'), border: borderAll() },
-  percentAgeRed: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('F4CCCC'), border: borderAll() },
   signifTextGreen: { font: { bold: true, color: { rgb: '000000' } }, alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('70AD47'), border: borderAll() },
   legendGreen: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('92D050'), border: borderAll() },
   legendAccent: { font: { bold: true, color: { rgb: 'C55A11' } }, alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('FFF2CC'), border: borderAll() },
-  legendText: { alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: borderAll() },
-  ageTotal: { font: { bold: true }, fill: hexFill('E7E6E6'), alignment: { horizontal: 'center', vertical: 'center' }, border: borderAll() },
-  ageTotalLabel: { font: { bold: true }, fill: hexFill('E7E6E6'), alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: borderAll() },
-  leaderDiff: { alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, fill: hexFill('FFF2CC'), border: borderAll() },
-  leaderSame: { alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: borderAll() }
+  legendText: { alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: borderAll() }
 };
 
 function isStrong2Plus(arr, index) {
@@ -1523,11 +1336,7 @@ function makeSummarySheetStyled(stdRes, concepts, signifRes, extraResults = []) 
     row++;
 
     summaryExtras.forEach(item => {
-      if (item.kind === 'scale5_by_concept') {
-        setCell(ws, row, 0, item.title, STYLES.label);
-        item.dist.forEach((d, i) => setPercent(ws, row, i + 1, d.top2, STYLES.percent));
-        row++;
-      } else if (item.kind === 'scale5') {
+      if (item.kind === 'scale5') {
         setCell(ws, row, 0, item.title, STYLES.label);
         setPercent(ws, row, 1, item.dist.top2, STYLES.percent);
         if (lastCol >= 2) mergeRange(ws, row, 1, row, lastCol);
@@ -1833,303 +1642,6 @@ function makeSignifSheetStyled(stdRes, concepts, signifRes) {
   const right = writeSignifBlock(ws, 0, rightStart, stdRes, concepts, signifRes, 'letters');
 
   applySheetRangeRef(ws, Math.max(left.endRow, right.endRow), Math.max(left.endCol, right.endCol));
-  return ws;
-}
-
-
-const AGE_GROUP_ORDER = ['18-24', '25-34', '35-44', '45+'];
-const AGE_GROUP_LABELS = {
-  '18-24': '18–24',
-  '25-34': '25–34',
-  '35-44': '35–44',
-  '45+': '45+'
-};
-
-function normalizeAgeGroup(value) {
-  const t = normalizeText(value);
-  if (!t) return null;
-
-  const onlyNumber = Number(t.replace(/[^0-9]/g, ''));
-  if (/^\d{2}$/.test(t) && Number.isFinite(onlyNumber)) {
-    if (onlyNumber >= 18 && onlyNumber <= 24) return '18-24';
-    if (onlyNumber >= 25 && onlyNumber <= 34) return '25-34';
-    if (onlyNumber >= 35 && onlyNumber <= 44) return '35-44';
-    if (onlyNumber >= 45) return '45+';
-  }
-
-  if (t.includes('18') && t.includes('24')) return '18-24';
-  if (t.includes('25') && t.includes('34')) return '25-34';
-  if (t.includes('35') && t.includes('44')) return '35-44';
-  if (t.includes('45') || t.includes('54') || t.includes('55') || t.includes('59') || t.includes('60')) return '45+';
-  return null;
-}
-
-function rowsByAgeGroup(rows, ageIdx) {
-  const groups = Object.fromEntries(AGE_GROUP_ORDER.map(g => [g, []]));
-  rows.forEach(row => {
-    const group = normalizeAgeGroup(getCell(row, ageIdx));
-    if (group && groups[group]) groups[group].push(row);
-  });
-  return groups;
-}
-
-function calcTop2ForSubset(subRows, cols, concepts) {
-  const n = subRows.length || 0;
-  const res = Array(concepts.length).fill(0);
-  if (!n || !cols || !cols.length) return res;
-
-  subRows.forEach(r => {
-    cols.forEach((col, i) => {
-      if (i >= concepts.length) return;
-      const v = parseScaleValue(getCell(r, col));
-      if (v === 4 || v === 5) res[i]++;
-    });
-  });
-
-  return res.map(v => v / n);
-}
-
-function calcImageForSubset(subRows, imageItems, concepts, header, statementKey) {
-  const n = subRows.length || 0;
-  const res = Array(concepts.length).fill(0);
-  if (!n) return res;
-
-  const items = (imageItems || []).filter(x => x.key === statementKey);
-  subRows.forEach(r => {
-    items.forEach(({ idx }) => {
-      const val = String(getCell(r, idx) || '').trim();
-      if (!val) return;
-      const conceptIndex = findConceptIndexByHeader(header[idx], concepts);
-      if (conceptIndex >= 0) res[conceptIndex]++;
-    });
-  });
-
-  return res.map(v => v / n);
-}
-
-function calcDirectForSubset(subRows, cols, concepts) {
-  const n = subRows.length || 0;
-  const res = Array(concepts.length).fill(0);
-  if (!n || !cols || !cols.length) return res;
-
-  const counts = {};
-  cols.forEach(idx => {
-    subRows.forEach(r => {
-      const v = String(getCell(r, idx) || '').trim();
-      if (!v) return;
-      counts[v] = (counts[v] || 0) + 1;
-    });
-  });
-
-  concepts.forEach((c, i) => {
-    const key = Object.keys(counts).find(k => normalizeText(k).includes(normalizeText(c.label)));
-    res[i] = key ? counts[key] / n : 0;
-  });
-
-  return res;
-}
-
-function calcExtraScale5BySubset(subRows, extraItems, concepts, header) {
-  const counts = Array.from({ length: concepts.length }, () => ({ good: 0, base: 0 }));
-
-  extraItems.forEach(item => {
-    const conceptIndex = findConceptIndexByHeader(header[item.idx], concepts);
-    if (conceptIndex < 0) return;
-    subRows.forEach(r => {
-      const v = parseScaleValue(getCell(r, item.idx));
-      if (v >= 1 && v <= 5) {
-        counts[conceptIndex].base++;
-        if (v === 4 || v === 5) counts[conceptIndex].good++;
-      }
-    });
-  });
-
-  return counts.map(x => x.base ? x.good / x.base : 0);
-}
-
-function calcAgeBreakdowns(rows, config, concepts, header, extraResults) {
-  const ageIdx = config.std.audience.age;
-  if (ageIdx == null) return null;
-
-  const groupRows = rowsByAgeGroup(rows, ageIdx);
-  const groups = AGE_GROUP_ORDER.map(key => ({ key, label: AGE_GROUP_LABELS[key], rows: groupRows[key] || [] }));
-  const totalRows = rows;
-
-  const metrics = [];
-  const addMetric = (section, label, totalVals, ageValsByGroup) => {
-    if (!totalVals || !totalVals.some(v => v > 0)) return;
-    metrics.push({ section, label, total: totalVals, age: ageValsByGroup });
-  };
-
-  [
-    ['Основные показатели', 'Нравится название', 'like'],
-    ['Основные показатели', 'Подходит для блюда / продукта', 'fitDish'],
-    ['Основные показатели', 'Подходит для бренда', 'fitBrand'],
-    ['Основные показатели', 'Намерение посетить БК', 'visitBK'],
-    ['Основные показатели', 'Намерение купить', 'buyDish'],
-    ['Основные показатели', 'Намерение рассказать / поделиться', 'shareIntent']
-  ].forEach(([section, label, key]) => {
-    const cols = config.std[key];
-    if (!cols || !cols.length) return;
-    const totalVals = calcTop2ForSubset(totalRows, cols, concepts);
-    const age = Object.fromEntries(groups.map(g => [g.key, calcTop2ForSubset(g.rows, cols, concepts)]));
-    addMetric(section, label, totalVals, age);
-  });
-
-  const imageKeys = Array.from(new Set((config.std.image || []).map(x => x.key)));
-  imageKeys.forEach(key => {
-    const totalVals = calcImageForSubset(totalRows, config.std.image, concepts, header, key);
-    const age = Object.fromEntries(groups.map(g => [g.key, calcImageForSubset(g.rows, config.std.image, concepts, header, key)]));
-    addMetric('Имиджевые высказывания', key, totalVals, age);
-  });
-
-  [
-    ['Прямое сравнение', 'Нравится больше всего', config.std.directLike],
-    ['Прямое сравнение', 'Куплю в первую очередь', config.std.directBuy],
-    ['Прямое сравнение', 'Рассказал(а) бы в первую очередь', config.std.directShare]
-  ].forEach(([section, label, cols]) => {
-    if (!cols || !cols.length) return;
-    const totalVals = calcDirectForSubset(totalRows, cols, concepts);
-    const age = Object.fromEntries(groups.map(g => [g.key, calcDirectForSubset(g.rows, cols, concepts)]));
-    addMetric(section, label, totalVals, age);
-  });
-
-  const extraByTitle = new Map();
-  (config.extra || []).forEach(q => {
-    if (q.type !== 'scale5') return;
-    if (!q.where || (!q.where.includes('age') && !q.where.includes('summary') && !q.where.includes('full'))) return;
-    if (!extraByTitle.has(q.title)) extraByTitle.set(q.title, []);
-    extraByTitle.get(q.title).push(q);
-  });
-
-  extraByTitle.forEach((items, title) => {
-    const totalVals = calcExtraScale5BySubset(totalRows, items, concepts, header);
-    if (!totalVals.some(v => v > 0)) return;
-    const age = Object.fromEntries(groups.map(g => [g.key, calcExtraScale5BySubset(g.rows, items, concepts, header)]));
-    addMetric('Дополнительные метрики', title, totalVals, age);
-  });
-
-  return {
-    nTotal: rows.length,
-    groups: groups.map(g => ({ key: g.key, label: g.label, n: g.rows.length })),
-    metrics
-  };
-}
-
-function leaderIndex(values) {
-  if (!values || !values.length) return -1;
-  let max = -Infinity;
-  let idx = -1;
-  values.forEach((v, i) => {
-    if (v > max) { max = v; idx = i; }
-  });
-  return idx;
-}
-
-function rankingText(values, concepts) {
-  return values
-    .map((v, i) => ({ v: v || 0, label: concepts[i].label }))
-    .sort((a, b) => b.v - a.v)
-    .map((x, i) => `${i + 1}. ${x.label}`)
-    .join(' → ');
-}
-
-function makeAgeBreakdownSheetStyled(ageRes, concepts) {
-  const ws = {};
-  const conceptCount = concepts.length;
-  const leaderCol = 4 + conceptCount;
-  const rankCol = leaderCol + 1;
-  const lastCol = rankCol;
-
-  ws['!cols'] = [
-    { wch: 24 },
-    { wch: 38 },
-    { wch: 14 },
-    { wch: 10 },
-    ...Array.from({ length: conceptCount }, () => ({ wch: 15 })),
-    { wch: 22 },
-    { wch: 60 }
-  ];
-
-  let row = 0;
-  setCell(ws, row, 0, 'ВОЗРАСТНЫЕ РАЗБИВКИ: TOP-2 / выбор в прямом сравнении', STYLES.title);
-  mergeRange(ws, row, 0, row, lastCol);
-  row++;
-
-  setCell(ws, row, 0, `Total: n=${ageRes.nTotal} | Возрастные группы: ${ageRes.groups.map(g => `${g.label} n=${g.n}`).join('; ')} | Все значения в %`, STYLES.base);
-  mergeRange(ws, row, 0, row, lastCol);
-  row++;
-
-  setCell(ws, row, 0, 'Легенда', STYLES.headerCenter);
-  setCell(ws, row, 1, 'зеленая ячейка — значимо выше Total; красная — значимо ниже Total; желтый лидер — лидер группы отличается от лидера Total', STYLES.legendText);
-  mergeRange(ws, row, 1, row, lastCol);
-  row += 2;
-
-  const writeHeader = () => {
-    setCell(ws, row, 0, 'Раздел', STYLES.headerCenter);
-    setCell(ws, row, 1, 'Метрика', STYLES.headerCenter);
-    setCell(ws, row, 2, 'Группа', STYLES.headerCenter);
-    setCell(ws, row, 3, 'База', STYLES.headerCenter);
-    concepts.forEach((c, i) => setCell(ws, row, 4 + i, c.label, STYLES.headerCenter));
-    setCell(ws, row, leaderCol, 'Лидер', STYLES.headerCenter);
-    setCell(ws, row, rankCol, 'Рейтинг', STYLES.headerCenter);
-    row++;
-  };
-
-  writeHeader();
-
-  let currentSection = null;
-  ageRes.metrics.forEach(metric => {
-    if (metric.section !== currentSection) {
-      currentSection = metric.section;
-      setCell(ws, row, 0, currentSection.toUpperCase(), STYLES.section);
-      mergeRange(ws, row, 0, row, lastCol);
-      row++;
-    }
-
-    const totalLeader = leaderIndex(metric.total);
-    const totalLeaderLabel = totalLeader >= 0 ? concepts[totalLeader].label : '';
-
-    setCell(ws, row, 0, metric.section, STYLES.ageTotalLabel);
-    setCell(ws, row, 1, metric.label, STYLES.ageTotalLabel);
-    setCell(ws, row, 2, 'Total', STYLES.ageTotal);
-    setCell(ws, row, 3, ageRes.nTotal, STYLES.ageTotal);
-    metric.total.forEach((v, i) => setPercent(ws, row, 4 + i, v, STYLES.ageTotal));
-    setCell(ws, row, leaderCol, totalLeaderLabel, STYLES.ageTotal);
-    setCell(ws, row, rankCol, rankingText(metric.total, concepts), STYLES.ageTotalLabel);
-    row++;
-
-    ageRes.groups.forEach(group => {
-      const vals = metric.age[group.key] || Array(concepts.length).fill(0);
-      const groupLeader = leaderIndex(vals);
-      const groupLeaderLabel = groupLeader >= 0 ? concepts[groupLeader].label : '';
-      const leaderStyle = groupLeader !== totalLeader ? STYLES.leaderDiff : STYLES.leaderSame;
-
-      setCell(ws, row, 0, metric.section, STYLES.label);
-      setCell(ws, row, 1, metric.label, STYLES.label);
-      setCell(ws, row, 2, group.label, STYLES.percent);
-      setCell(ws, row, 3, group.n, STYLES.percent);
-
-      vals.forEach((v, i) => {
-        let style = STYLES.percent;
-        if (group.n > 1 && ageRes.nTotal > 1) {
-          const z = zTest(v, metric.total[i] || 0, group.n, ageRes.nTotal);
-          if (z > 1.96) style = STYLES.percentAgeGreen;
-          else if (z < -1.96) style = STYLES.percentAgeRed;
-        }
-        setPercent(ws, row, 4 + i, v, style);
-      });
-
-      setCell(ws, row, leaderCol, groupLeaderLabel, leaderStyle);
-      setCell(ws, row, rankCol, rankingText(vals, concepts), STYLES.label);
-      row++;
-    });
-
-    row++;
-  });
-
-  applySheetRangeRef(ws, row, lastCol);
-  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 4, c: 0 }, e: { r: Math.max(row - 1, 4), c: lastCol } }) };
   return ws;
 }
 
