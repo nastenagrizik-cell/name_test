@@ -437,102 +437,14 @@ if (typeof XLSX !== 'object') {
       const concepts = inferConcepts(header, userConfig);
       const stdResults = calcStandardBlocks(rows, userConfig, concepts, header);
       const extraResults = calcExtraBlocks(rows, userConfig, concepts, header);
-      function detectAgeBucket(value) {
-  const s = String(value || '').trim();
-  if (!s) return null;
-  const nums = (s.match(/\d+/g) || []).map(Number);
-  const first = nums.length ? nums[0] : NaN;
-  const t = normalizeText(s);
+      const audienceRes = calcAudience(rows, userConfig);
+      const signifRes = calcSignificance(stdResults, concepts, rows.length);
 
-  if (!Number.isNaN(first)) {
-    if (first >= 18 && first <= 24) return '18-24';
-    if (first >= 25 && first <= 34) return '25-34';
-    if (first >= 35 && first <= 44) return '35-44';
-    if (first >= 45) return '45+';
-  }
-
-  if (t.includes('18-24')) return '18-24';
-  if (t.includes('25-34')) return '25-34';
-  if (t.includes('35-44')) return '35-44';
-  if (t.includes('45-54') || t.includes('55+') || t.includes('55 +') || t.includes('45+')) return '45+';
-
-  return null;
-}
-
-function calcAgeBreaks(rows, config, concepts, header) {
-  const ageIdx = config?.std?.audience?.age;
-  if (ageIdx == null || ageIdx < 0) return null;
-
-  const groups = [
-    { key: 'total', label: 'Total', rows: rows.slice() },
-    { key: '18-24', label: '18-24', rows: rows.filter(r => detectAgeBucket(getCell(r, ageIdx)) === '18-24') },
-    { key: '25-34', label: '25-34', rows: rows.filter(r => detectAgeBucket(getCell(r, ageIdx)) === '25-34') },
-    { key: '35-44', label: '35-44', rows: rows.filter(r => detectAgeBucket(getCell(r, ageIdx)) === '35-44') },
-    { key: '45+', label: '45+', rows: rows.filter(r => detectAgeBucket(getCell(r, ageIdx)) === '45+') }
-  ].filter(g => g.key === 'total' || g.rows.length > 0);
-
-  if (groups.length <= 1) return null;
-
-  const byGroup = {};
-  groups.forEach(g => {
-    byGroup[g.key] = calcStandardBlocks(g.rows, config, concepts, header);
-  });
-
-  const metricKeys = ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent'];
-  const significance = { metrics: {}, image: {}, direct: {} };
-
-  function compareToTotal(pAge, nAge, pTotal, nTotal) {
-    if (!nAge || !nTotal) return null;
-    const z = zTest(pAge, pTotal, nAge, nTotal);
-    if (z > 1.96) return 'up';
-    if (z < -1.96) return 'down';
-    return null;
-  }
-
-  metricKeys.forEach(key => {
-    significance.metrics[key] = {};
-    groups.forEach(g => {
-      if (g.key === 'total') return;
-      const ageVals = byGroup[g.key]?.top2?.[key];
-      const totalVals = byGroup.total?.top2?.[key];
-      if (!ageVals || !totalVals) return;
-      significance.metrics[key][g.key] = ageVals.map((p, i) => compareToTotal(p, byGroup[g.key].n, totalVals[i], byGroup.total.n));
-    });
-  });
-
-  Object.keys(byGroup.total?.image || {}).forEach(label => {
-    significance.image[label] = {};
-    groups.forEach(g => {
-      if (g.key === 'total') return;
-      const ageVals = byGroup[g.key]?.image?.[label];
-      const totalVals = byGroup.total?.image?.[label];
-      if (!ageVals || !totalVals) return;
-      significance.image[label][g.key] = ageVals.map((p, i) => compareToTotal(p, byGroup[g.key].n, totalVals[i], byGroup.total.n));
-    });
-  });
-
-  ['likeMost', 'buyFirst', 'shareFirst'].forEach(key => {
-    significance.direct[key] = {};
-    groups.forEach(g => {
-      if (g.key === 'total') return;
-      const ageVals = byGroup[g.key]?.direct?.[key]?.perConcept;
-      const totalVals = byGroup.total?.direct?.[key]?.perConcept;
-      if (!ageVals || !totalVals) return;
-      significance.direct[key][g.key] = ageVals.map((p, i) => compareToTotal(p, byGroup[g.key].n, totalVals[i], byGroup.total.n));
-    });
-  });
-
-  return { groups, byGroup, significance };
-}
-      function zTest(...) = calcAudience(rows, userConfig);
-const signifRes = calcSignificance(stdResults, concepts, rows.length);
-const ageBreaksRes = calcAgeBreaks(rows, userConfig, concepts, header);
-const outWb = XLSX.utils.book_new();
-XLSX.utils.book_append_sheet(outWb, makeSummarySheetStyled(stdResults, concepts, signifRes, extraResults), 'САММАРИ');
-XLSX.utils.book_append_sheet(outWb, makeFullSheetStyled(stdResults, concepts, extraResults), 'полные таблицы');
-XLSX.utils.book_append_sheet(outWb, makeSignifSheetStyled(stdResults, concepts, signifRes), 'значимости');
-if (ageBreaksRes) XLSX.utils.book_append_sheet(outWb, makeAgeBreaksSheetStyled(ageBreaksRes, concepts), 'возраст');
-XLSX.utils.book_append_sheet(outWb, makeAudienceSheetStyled(audienceRes), 'Аудитория');
+      const outWb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(outWb, makeSummarySheetStyled(stdResults, concepts, signifRes, extraResults), 'САММАРИ');
+      XLSX.utils.book_append_sheet(outWb, makeFullSheetStyled(stdResults, concepts, extraResults), 'полные таблицы');
+      XLSX.utils.book_append_sheet(outWb, makeSignifSheetStyled(stdResults, concepts, signifRes), 'значимости');
+      XLSX.utils.book_append_sheet(outWb, makeAudienceSheetStyled(audienceRes), 'Аудитория');
 
       const outName = 'Topline_' + (baseFile.name.replace(/\.[^.]+$/, '') || 'output') + '.xlsx';
       XLSX.writeFile(outWb, outName);
@@ -1265,12 +1177,7 @@ const STYLES = {
   signifTextGreen: { font: { bold: true, color: { rgb: '000000' } }, alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('70AD47'), border: borderAll() },
   legendGreen: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('92D050'), border: borderAll() },
   legendAccent: { font: { bold: true, color: { rgb: 'C55A11' } }, alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('FFF2CC'), border: borderAll() },
-  legendText: { alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: borderAll() },
-
-  ageGroupTotal: { font: { bold: true }, fill: hexFill('DCE6F1'), alignment: { horizontal: 'left', vertical: 'center' }, border: borderAll() },
-  ageGroup: { alignment: { horizontal: 'left', vertical: 'center' }, border: borderAll() },
-  percentAgeUp: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('E2F0D9'), font: { color: { rgb: '2E7D32' }, bold: true }, border: borderAll() },
-  percentAgeDown: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('FDE9E7'), font: { color: { rgb: 'C00000' }, bold: true }, border: borderAll() }
+  legendText: { alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, border: borderAll() }
 };
 
 function isStrong2Plus(arr, index) {
@@ -1795,117 +1702,4 @@ function writeAudienceBlock(ws, startRow, sectionTitle, blocks) {
   });
 
   return row;
-}
-function ageCellStyle(direction, isTotal = false) {
-  if (isTotal) return STYLES.top2Row;
-  if (direction === 'up') return STYLES.percentAgeUp;
-  if (direction === 'down') return STYLES.percentAgeDown;
-  return STYLES.percent;
-}
-
-function makeAgeBreaksSheetStyled(ageRes, concepts) {
-  const ws = {};
-  const lastCol = 1 + concepts.length;
-  ws['!cols'] = [{ wch: 40 }, { wch: 12 }, ...Array.from({ length: concepts.length }, () => ({ wch: 15 }))];
-
-  let row = 0;
-  setCell(ws, row, 0, 'ВОЗРАСТНЫЕ РАЗБИВКИ', STYLES.title);
-  mergeRange(ws, row, 0, row, lastCol);
-  row++;
-
-  setCell(ws, row, 0, `База total: n=${ageRes.byGroup.total.n} | строки: Total, 18-24, 25-34, 35-44, 45+ | значения в %`, STYLES.base);
-  mergeRange(ws, row, 0, row, lastCol);
-  row++;
-
-  setCell(ws, row, 0, 'Легенда', STYLES.headerCenter);
-  setCell(ws, row, 1, 'xx', STYLES.percentAgeUp);
-  setCell(ws, row, 2, 'значимо выше Total', STYLES.legendText);
-  if (lastCol >= 3) mergeRange(ws, row, 2, row, 3);
-  if (lastCol >= 4) {
-    setCell(ws, row, 4, 'xx', STYLES.percentAgeDown);
-    setCell(ws, row, 5, 'значимо ниже Total', STYLES.legendText);
-    if (lastCol >= 5) mergeRange(ws, row, 5, row, lastCol);
-  }
-  row++;
-
-  setCell(ws, row, 0, 'Показатель', STYLES.headerCenter);
-  setCell(ws, row, 1, 'Возраст', STYLES.headerCenter);
-  concepts.forEach((c, i) => setCell(ws, row, i + 2, c.label, STYLES.headerCenter));
-  row++;
-
-  const metricOrder = [
-    ['Нравится название', 'like'],
-    ['Подходит для блюда / продукта', 'fitDish'],
-    ['Подходит для бренда', 'fitBrand'],
-    ['Намерение посетить БК', 'visitBK'],
-    ['Намерение купить', 'buyDish'],
-    ['Намерение рассказать / поделиться', 'shareIntent']
-  ];
-
-  metricOrder.forEach(([label, key]) => {
-    if (!ageRes.byGroup.total?.top2?.[key]) return;
-    ageRes.groups.forEach((g, idx) => {
-      const vals = ageRes.byGroup[g.key]?.top2?.[key];
-      if (!vals) return;
-      setCell(ws, row, 0, idx === 0 ? label : '', STYLES.label);
-      setCell(ws, row, 1, g.label, g.key === 'total' ? STYLES.ageGroupTotal : STYLES.ageGroup);
-      vals.forEach((v, i) => {
-        const dir = g.key === 'total' ? null : ageRes.significance.metrics?.[key]?.[g.key]?.[i];
-        setPercent(ws, row, i + 2, v, ageCellStyle(dir, g.key === 'total'));
-      });
-      row++;
-    });
-    row++;
-  });
-
-  const hasDirectLike = !!ageRes.byGroup.total?.direct?.likeMost;
-  const hasDirectBuy = !!ageRes.byGroup.total?.direct?.buyFirst;
-  const hasDirectShare = !!ageRes.byGroup.total?.direct?.shareFirst;
-
-  if (hasDirectLike || hasDirectBuy || hasDirectShare) {
-    const directMap = [];
-    if (hasDirectLike) directMap.push(['Нравится больше всего', 'likeMost']);
-    if (hasDirectBuy) directMap.push(['Куплю в первую очередь', 'buyFirst']);
-    if (hasDirectShare) directMap.push(['Рассказал(а) бы в первую очередь', 'shareFirst']);
-
-    directMap.forEach(([label, key]) => {
-      ageRes.groups.forEach((g, idx) => {
-        const vals = ageRes.byGroup[g.key]?.direct?.[key]?.perConcept;
-        if (!vals) return;
-        setCell(ws, row, 0, idx === 0 ? label : '', STYLES.label);
-        setCell(ws, row, 1, g.label, g.key === 'total' ? STYLES.ageGroupTotal : STYLES.ageGroup);
-        vals.forEach((v, i) => {
-          const dir = g.key === 'total' ? null : ageRes.significance.direct?.[key]?.[g.key]?.[i];
-          setPercent(ws, row, i + 2, v, ageCellStyle(dir, g.key === 'total'));
-        });
-        row++;
-      });
-      row++;
-    });
-  }
-
-  const imageEntries = Object.entries(ageRes.byGroup.total?.image || {});
-  if (imageEntries.length) {
-    setCell(ws, row, 0, 'Имиджевые высказывания', STYLES.section);
-    mergeRange(ws, row, 0, row, lastCol);
-    row++;
-
-    imageEntries.forEach(([label]) => {
-      ageRes.groups.forEach((g, idx) => {
-        const vals = ageRes.byGroup[g.key]?.image?.[label];
-        if (!vals) return;
-        setCell(ws, row, 0, idx === 0 ? label : '', STYLES.label);
-        setCell(ws, row, 1, g.label, g.key === 'total' ? STYLES.ageGroupTotal : STYLES.ageGroup);
-        vals.forEach((v, i) => {
-          const dir = g.key === 'total' ? null : ageRes.significance.image?.[label]?.[g.key]?.[i];
-          setPercent(ws, row, i + 2, v, ageCellStyle(dir, g.key === 'total'));
-        });
-        row++;
-      });
-      row++;
-    });
-  }
-
-  applySheetRangeRef(ws, row, lastCol);
-  return ws;
 }
