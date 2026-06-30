@@ -21,12 +21,17 @@ function debugLine(...parts) {
     try { return JSON.stringify(x); } catch (_) { return String(x); }
   }).join(' ');
 
-  console.log('[DEBUG]', ...parts);
+  if (window.TOPLINE_DEBUG) console.log('[DEBUG]', ...parts);
 
   if (window.TOPLINE_DEBUG && statusEl) {
     const prev = statusEl.textContent || '';
     statusEl.textContent = prev ? (prev + '\n[DEBUG] ' + msg) : ('[DEBUG] ' + msg);
   }
+}
+
+
+function waitForUI() {
+  return new Promise(resolve => setTimeout(resolve, 0));
 }
 
 function normalizeText(s) {
@@ -358,17 +363,31 @@ if (typeof XLSX !== 'object') {
     debugLine('starting read');
 
     try {
+      await waitForUI();
       const arrayBuffer = await baseFile.arrayBuffer();
       debugLine('arrayBuffer ok, bytes =', arrayBuffer.byteLength);
 
-      const wb = XLSX.read(arrayBuffer, { type: 'array' });
+      status('Файл прочитан. Разбираю Excel...');
+      await waitForUI();
+      const wb = XLSX.read(arrayBuffer, {
+        type: 'array',
+        cellStyles: false,
+        cellNF: false,
+        cellHTML: false,
+        cellFormula: false,
+        cellDates: false,
+        sheetStubs: false,
+        WTF: false
+      });
       debugLine('xlsx read ok, sheets =', wb.SheetNames);
 
       const sheetName = wb.SheetNames[wb.SheetNames.length - 1];
       debugLine('selected sheet =', sheetName);
 
+      status('Excel разобран. Читаю лист: ' + sheetName + '...');
+      await waitForUI();
       const sheet = wb.Sheets[sheetName];
-      const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+      const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true });
       debugLine('sheet_to_json ok, rows =', data.length);
 
       const { header, rows } = splitHeaderRows(data);
@@ -378,6 +397,8 @@ if (typeof XLSX !== 'object') {
       parsed = { header, rows };
       debugLine('parsed assigned');
 
+      status('Определяю стандартные и дополнительные метрики...');
+      await waitForUI();
       autoMapping = autoDetectMapping(header);
       debugLine('autoDetectMapping ok = ' + JSON.stringify({
         like: autoMapping.std.like.length,
@@ -399,9 +420,12 @@ if (typeof XLSX !== 'object') {
       debugLine('matched shareIntent headers = ' + JSON.stringify(autoMapping.std.shareIntent.map(i => header[i]).slice(0, 5)));
       debugLine('matched extra headers = ' + JSON.stringify(autoMapping.extraCandidates.map(x => x.header).slice(0, 10)));
 
+      status('Готовлю экран проверки найденных вопросов...');
+      await waitForUI();
       renderStandardMappingUI(autoMapping, header);
       debugLine('renderStandardMappingUI ok');
 
+      await waitForUI();
       renderExtraQuestionsUI(autoMapping, header);
       debugLine('renderExtraQuestionsUI ok');
 
