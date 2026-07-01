@@ -1326,6 +1326,38 @@ function blockValueRows(stdRes, key) {
 }
 
 
+
+function excelCol(n) {
+  let s = '';
+  while (n >= 0) {
+    s = String.fromCharCode((n % 26) + 65) + s;
+    n = Math.floor(n / 26) - 1;
+  }
+  return s;
+}
+
+function withAlignCenter(style) {
+  return { ...style, alignment: { ...(style.alignment || {}), horizontal: 'center', vertical: 'center' } };
+}
+
+function extraBlockValueRows(item) {
+  if (item.kind !== 'scale5_by_concept') return [];
+  return [
+    ['ТОП-2 (сумма 4+5)', item.dist.map(d => d.top2), 'top2'],
+    ['1', item.dist.map(d => d['1']), 'detail'],
+    ['2', item.dist.map(d => d['2']), 'detail'],
+    ['3', item.dist.map(d => d['3']), 'detail'],
+    ['4', item.dist.map(d => d['4']), 'detail'],
+    ['5', item.dist.map(d => d['5']), 'detail']
+  ];
+}
+
+function styleForAgeState(state) {
+  if (state === 'up') return withAlignCenter(STYLES.percentGreen || STYLES.percent);
+  if (state === 'down') return { ...(withAlignCenter(STYLES.percent || STYLES.label)), fill: { fgColor: { rgb: 'F4CCCC' } } };
+  return withAlignCenter(STYLES.percent || STYLES.label);
+}
+
 function signifCellText(value, letters) {
   const pctText = Math.round((value || 0) * 100) + '%';
   if (!letters || !letters.length) return pctText;
@@ -1477,13 +1509,11 @@ function makeFullSheetStyled(stdRes, concepts, extraResults = []) {
     setCell(ws, row, 0, item.title, STYLES.blockTitle);
     mergeRange(ws, row, 0, row, lastCol);
     row++;
-    if (item.kind === 'scale5_by_concept') {
-      [['ТОП-2 (4+5)', item.dist.map(d => d.top2), true], ['1', item.dist.map(d => d['1']), false], ['2', item.dist.map(d => d['2']), false], ['3', item.dist.map(d => d['3']), false], ['4', item.dist.map(d => d['4']), false], ['5', item.dist.map(d => d['5']), false]].forEach(([label, values, isTop]) => {
-        setCell(ws, row, 0, label, isTop ? STYLES.top2Label : STYLES.label);
-        values.forEach((value, i) => setPercent(ws, row, i + 1, value, isTop ? STYLES.top2Row : STYLES.percent));
-        row++;
-      });
-    }
+    extraBlockValueRows(item).forEach(([label, values, level]) => {
+      setCell(ws, row, 0, label, level === 'top2' ? STYLES.top2Label : STYLES.label);
+      values.forEach((value, i) => setPercent(ws, row, i + 1, value, level === 'top2' ? STYLES.top2Row : STYLES.percent));
+      row++;
+    });
     row++;
   });
 
@@ -1535,37 +1565,75 @@ function makeFullSheetStyled(stdRes, concepts, extraResults = []) {
 
 function makeSignifSheetStyled(stdRes, concepts, signifRes, extraResults = []) {
   const ws = {};
-  const lastCol = concepts.length;
   const extraSig = extraSignifMap(extraResults, concepts);
-  ws['!cols'] = [{ wch: 42 }, ...Array.from({ length: concepts.length }, () => ({ wch: 16 }))];
+  const gap = 2;
+  const tableWidth = 1 + concepts.length;
+  const rightStart = tableWidth + gap;
+  const totalWidth = rightStart + tableWidth - 1;
+  ws['!cols'] = [
+    { wch: 40 }, ...Array.from({ length: concepts.length }, () => ({ wch: 14 })),
+    { wch: 3 }, { wch: 3 },
+    { wch: 40 }, ...Array.from({ length: concepts.length }, () => ({ wch: 16 }))
+  ];
   let row = 0;
-
-  setCell(ws, row, 0, 'ЗНАЧИМОСТИ', STYLES.title);
-  mergeRange(ws, row, 0, row, lastCol);
+  setCell(ws, row, 0, 'ПОЛНЫЕ ДАННЫЕ ПО ВСЕМ ВОПРОСАМ', STYLES.title);
+  mergeRange(ws, row, 0, row, tableWidth - 1);
+  setCell(ws, row, rightStart, 'ПОЛНЫЕ ДАННЫЕ ПО ВСЕМ ВОПРОСАМ', STYLES.title);
+  mergeRange(ws, row, rightStart, row, rightStart + tableWidth - 1);
   row++;
-  setCell(ws, row, 0, 'Top-2 и значимости по основным и выбранным дополнительным метрикам', STYLES.base);
-  mergeRange(ws, row, 0, row, lastCol);
-  row += 2;
-
-  setCell(ws, row, 0, 'Показатель', STYLES.headerCenter);
+  setCell(ws, row, 0, 'Тестируемые варианты названий', STYLES.headerCenter);
   concepts.forEach((c, i) => setCell(ws, row, i + 1, c.label, STYLES.headerCenter));
+  setCell(ws, row, rightStart, 'Тестируемые варианты названий', STYLES.headerCenter);
+  concepts.forEach((c, i) => setCell(ws, row, rightStart + i + 1, c.label, STYLES.headerCenter));
+  row++;
+  setCell(ws, row, 0, `База: n=${stdRes.n} респондентов | Все значения в %`, STYLES.base);
+  mergeRange(ws, row, 0, row, tableWidth - 1);
+  setCell(ws, row, rightStart, `База: n=${stdRes.n} респондентов | Все значения в %`, STYLES.base);
+  mergeRange(ws, row, rightStart, row, rightStart + tableWidth - 1);
+  row++;
+  setCell(ws, row, 1, 'xx', STYLES.legendGreen);
+  setCell(ws, row, 2, 'значимо выше 2 и более других названий', STYLES.legendText);
+  mergeRange(ws, row, 2, row, tableWidth - 1);
+  setCell(ws, row, rightStart + 1, 'X', STYLES.legendGreen);
+  setCell(ws, row, rightStart + 2, 'значимо выше по сравнению с другими вариантами', STYLES.legendText);
+  mergeRange(ws, row, rightStart + 2, row, rightStart + tableWidth - 1);
   row++;
 
-  const mainRows = [['Нравится название','like'],['Подходит для блюда / продукта','fitDish'],['Подходит для бренда','fitBrand'],['Намерение посетить БК','visitBK'],['Намерение купить','buyDish'],['Намерение рассказать / поделиться','shareIntent']];
-  mainRows.forEach(([label, key]) => {
-    if (!hasMetric(stdRes, key)) return;
-    setCell(ws, row, 0, label, STYLES.label);
-    stdRes.top2[key].forEach((v, i) => setCell(ws, row, i + 1, signifCellText(v, signifRes.top2[key]?.[i]), isStrong2Plus(signifRes.top2[key], i) ? STYLES.signifTextGreen : STYLES.label));
+  function writeSection(title, leftRows, rightRows) {
+    setCell(ws, row, 0, title, STYLES.blockTitle);
+    mergeRange(ws, row, 0, row, tableWidth - 1);
+    setCell(ws, row, rightStart, title, STYLES.blockTitle);
+    mergeRange(ws, row, rightStart, row, rightStart + tableWidth - 1);
     row++;
+    leftRows.forEach((lrow, idx) => {
+      const rrow = rightRows[idx] || lrow;
+      setCell(ws, row, 0, lrow.label, lrow.level === 'top2' ? STYLES.top2Label : STYLES.label);
+      lrow.values.forEach((v, i) => setPercent(ws, row, i + 1, v, lrow.green?.[i] ? STYLES.percentGreen : (lrow.level === 'top2' ? STYLES.top2Row : STYLES.percent)));
+      setCell(ws, row, rightStart, rrow.label, rrow.level === 'top2' ? STYLES.top2Label : STYLES.label);
+      rrow.values.forEach((v, i) => setCell(ws, row, rightStart + i + 1, signifCellText(v, rrow.letters?.[i]), rrow.green?.[i] ? STYLES.signifTextGreen : (rrow.level === 'top2' ? STYLES.top2Label : STYLES.label)));
+      row++;
+    });
+    row++;
+  }
+
+  [['НАСКОЛЬКО НРАВИТСЯ НАЗВАНИЕ','like'],['НАСКОЛЬКО ПОДХОДИТ ДЛЯ ЭТОГО ПРОДУКТА','fitDish'],['НАСКОЛЬКО ПОДХОДИТ ДЛЯ БРЕНДА БУРГЕР КИНГ В ЦЕЛОМ','fitBrand'],['НАМЕРЕНИЕ ПОСЕТИТЬ БК','visitBK'],['НАМЕРЕНИЕ КУПИТЬ ПО ПРИЕМЛЕМОЙ ЦЕНЕ','buyDish'],['НАМЕРЕНИЕ РАССКАЗАТЬ / ПОДЕЛИТЬСЯ','shareIntent']].forEach(([title,key]) => {
+    if (!hasMetric(stdRes,key)) return;
+    const rows = blockValueRows(stdRes,key).map(([label, values, level]) => ({ label, values, level, green: level === 'top2' ? concepts.map((_,i)=>isStrong2Plus(signifRes.top2[key], i)) : Array(values.length).fill(false), letters: level === 'top2' ? signifRes.top2[key] : Array(values.length).fill([]) }));
+    writeSection(title, rows, rows);
   });
 
-  extraResults.filter(x => x.where.includes('signif') && x.kind === 'scale5_by_concept').forEach(item => {
-    setCell(ws, row, 0, item.title, STYLES.label);
-    item.dist.map(d => d.top2).forEach((v, i) => setCell(ws, row, i + 1, signifCellText(v, extraSig[item.title]?.[i]), isStrong2Plus(extraSig[item.title], i) ? STYLES.signifTextGreen : STYLES.label));
-    row++;
+  extraResults.filter(x => x.where.includes('signif')).forEach(item => {
+    const rows = extraBlockValueRows(item).map(([label, values, level]) => ({ label, values, level, green: level === 'top2' ? concepts.map((_,i)=>isStrong2Plus(extraSig[item.title], i)) : Array(values.length).fill(false), letters: level === 'top2' ? extraSig[item.title] : Array(values.length).fill([]) }));
+    writeSection(item.title.toUpperCase(), rows, rows);
   });
 
-  applySheetRangeRef(ws, row, lastCol);
+  const imageEntries = Object.entries(stdRes.image || {});
+  if (imageEntries.length) {
+    const rows = imageEntries.map(([label, values]) => ({ label, values, level: 'top2', green: concepts.map((_,i)=>isStrong2Plus(signifRes.image[label], i)), letters: signifRes.image[label] || Array(values.length).fill([]) }));
+    writeSection('ИМИДЖЕВЫЙ БЛОК', rows, rows);
+  }
+
+  applySheetRangeRef(ws, row, totalWidth);
   return ws;
 }
 
@@ -1619,7 +1687,7 @@ function calcAgeSignificance(ageData, totalStdRes, concepts, totalExtraRes = [])
       const totalVals = totalStdRes.top2[key] || [];
       return groupVals.map((p, ci) => {
         const z = zTest(p || 0, totalVals[ci] || 0, ageData.groups[gi].n || 1, ageData.total || 1);
-        return z > alphaZ ? 'выше тотала' : (z < -alphaZ ? 'ниже тотала' : '');
+        return z > alphaZ ? 'up' : (z < -alphaZ ? 'down' : '');
       });
     });
   });
@@ -1629,7 +1697,7 @@ function calcAgeSignificance(ageData, totalStdRes, concepts, totalExtraRes = [])
       const totalVals = totalStdRes.image?.[label] || [];
       return groupVals.map((p, ci) => {
         const z = zTest(p || 0, totalVals[ci] || 0, ageData.groups[gi].n || 1, ageData.total || 1);
-        return z > alphaZ ? 'выше тотала' : (z < -alphaZ ? 'ниже тотала' : '');
+        return z > alphaZ ? 'up' : (z < -alphaZ ? 'down' : '');
       });
     });
   });
@@ -1641,7 +1709,7 @@ function calcAgeSignificance(ageData, totalStdRes, concepts, totalExtraRes = [])
       return totalVals.map((tv, ci) => {
         const p = groupVals[ci] || 0;
         const z = zTest(p, tv, ageData.groups[gi].n || 1, ageData.total || 1);
-        return z > alphaZ ? 'выше тотала' : (z < -alphaZ ? 'ниже тотала' : '');
+        return z > alphaZ ? 'up' : (z < -alphaZ ? 'down' : '');
       });
     });
   });
@@ -1651,15 +1719,17 @@ function calcAgeSignificance(ageData, totalStdRes, concepts, totalExtraRes = [])
 function makeAgeSheetStyled(ageData, ageSignif, totalStdRes, totalExtraRes, concepts) {
   const ws = {};
   const subCols = ['Total', '18-24', '25-34', '35-44', '45+'];
-  const width = subCols.length;
+  const width = subCols.length + 1;
   const lastCol = concepts.length * width;
-  ws['!cols'] = [{ wch: 38 }, ...Array.from({ length: concepts.length * width }, (_, i) => ({ wch: i % width === 0 ? 12 : 13 }))];
+  ws['!cols'] = [{ wch: 30 }, ...Array.from({ length: concepts.length }, (_, i) => ([{ wch: 9 },{ wch: 9 },{ wch: 9 },{ wch: 9 },{ wch: 9 },{ wch: 3 }][i%6]))];
+  // rebuild cols correctly
+  ws['!cols'] = [{ wch: 30 }];
+  for (let i = 0; i < concepts.length; i++) ws['!cols'].push({ wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 2 });
   let row = 0;
-
   setCell(ws, row, 0, 'ВОЗРАСТ', STYLES.title);
   mergeRange(ws, row, 0, row, lastCol);
   row++;
-  setCell(ws, row, 0, 'Выборка: ' + ageData.groups.map(g => `${g.label} n=${g.n}`).join('; '), STYLES.base);
+  setCell(ws, row, 0, 'Легенда: Total = общий результат; зеленая ячейка = значимо выше тотала; красная ячейка = значимо ниже тотала. Выборка: ' + ageData.groups.map(g => `${g.label} n=${g.n}`).join('; '), STYLES.base);
   mergeRange(ws, row, 0, row, lastCol);
   row += 2;
 
@@ -1670,14 +1740,15 @@ function makeAgeSheetStyled(ageData, ageSignif, totalStdRes, totalExtraRes, conc
     setCell(ws, row, 0, 'Показатель', STYLES.headerCenter);
     concepts.forEach((c, i) => {
       const start = 1 + i * width;
-      setCell(ws, row, start, c.label, STYLES.headerCenter);
-      mergeRange(ws, row, start, row, start + width - 1);
+      const accent = { ...STYLES.headerCenter, font: { ...(STYLES.headerCenter.font || {}), sz: 13, bold: true } };
+      setCell(ws, row, start, c.label, accent);
+      mergeRange(ws, row, start, row, start + width - 2);
     });
     row++;
     setCell(ws, row, 0, '', STYLES.headerCenter);
     concepts.forEach((_, i) => {
       const start = 1 + i * width;
-      subCols.forEach((lab, j) => setCell(ws, row, start + j, lab, lab === 'Total' ? STYLES.base : STYLES.top2Label));
+      subCols.forEach((lab, j) => setCell(ws, row, start + j, lab, lab === 'Total' ? withAlignCenter(STYLES.base) : withAlignCenter(STYLES.top2Label)));
     });
     row++;
   }
@@ -1686,11 +1757,11 @@ function makeAgeSheetStyled(ageData, ageSignif, totalStdRes, totalExtraRes, conc
     setCell(ws, row, 0, label, STYLES.label);
     concepts.forEach((_, ci) => {
       const start = 1 + ci * width;
-      setPercent(ws, row, start, totalVals[ci] || 0, STYLES.top2Row);
+      setPercent(ws, row, start, totalVals[ci] || 0, withAlignCenter(STYLES.top2Row));
       AGE_GROUPS.forEach((_, gi) => {
-        const txt = signifByAge?.[gi]?.[ci];
+        const state = signifByAge?.[gi]?.[ci] || '';
         const val = groupValsByAge[gi]?.[ci] || 0;
-        setCell(ws, row, start + gi + 1, `${Math.round(val * 100)}%${txt ? ' ' + txt : ''}`, txt === 'выше тотала' ? STYLES.signifTextGreen : STYLES.label);
+        setPercent(ws, row, start + gi + 1, val, styleForAgeState(state));
       });
     });
     row++;
@@ -1711,24 +1782,22 @@ function makeAgeSheetStyled(ageData, ageSignif, totalStdRes, totalExtraRes, conc
     writeMetricRow(label, totalVals, AGE_GROUPS.map((_,gi)=>ageData.groups[gi].stdRes.image?.[label]||[]), ageSignif.image[label]);
   });
 
+  row += 2;
+  setCell(ws, row, 0, 'РАНКИНГ ПО ВОЗРАСТАМ ПО МЕТРИКЕ «НРАВИТСЯ НАЗВАНИЕ»', STYLES.section);
+  mergeRange(ws, row, 0, row, 5);
   row++;
-  setCell(ws, row, 0, 'РАНКИНГ ПО ВОЗРАСТАМ', STYLES.section);
-  mergeRange(ws, row, 0, row, 2);
+  ['Ранг','Total','18-24','25-34','35-44','45+'].forEach((h,i)=>setCell(ws,row,i, h, STYLES.headerCenter));
   row++;
-  setCell(ws, row, 0, 'Группа', STYLES.headerCenter);
-  setCell(ws, row, 1, 'Какие названия нравятся больше', STYLES.headerCenter);
-  mergeRange(ws, row, 1, row, 2);
-  row++;
-  ageData.groups.forEach(group => {
-    const vals = group.stdRes.top2.like || [];
-    const ranking = concepts.map((c, i) => ({ label: c.label, v: vals[i] || 0 })).sort((a, b) => b.v - a.v).slice(0, 4).map((x, i) => `${i+1}. ${x.label} (${Math.round(x.v * 100)}%)`).join(' | ');
-    setCell(ws, row, 0, group.label, STYLES.label);
-    setCell(ws, row, 1, ranking, STYLES.label);
-    mergeRange(ws, row, 1, row, 2);
+  const totalRank = concepts.map((c,i)=>({label:c.label,v:(totalStdRes.top2.like||[])[i]||0})).sort((a,b)=>b.v-a.v);
+  const groupRanks = ageData.groups.map(group => concepts.map((c,i)=>({label:c.label,v:(group.stdRes.top2.like||[])[i]||0})).sort((a,b)=>b.v-a.v));
+  for (let r = 0; r < concepts.length; r++) {
+    setCell(ws, row, 0, String(r + 1), withAlignCenter(STYLES.label));
+    setCell(ws, row, 1, `${totalRank[r].label} (${Math.round(totalRank[r].v*100)}%)`, withAlignCenter(STYLES.label));
+    groupRanks.forEach((rank, gi) => setCell(ws, row, gi + 2, `${rank[r].label} (${Math.round(rank[r].v*100)}%)`, withAlignCenter(STYLES.label)));
     row++;
-  });
+  }
 
-  applySheetRangeRef(ws, row, Math.max(lastCol, 2));
+  applySheetRangeRef(ws, row, Math.max(lastCol, 5));
   return ws;
 }
 
