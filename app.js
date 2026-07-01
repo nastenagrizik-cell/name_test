@@ -28,6 +28,15 @@ function debugLine(...parts) {
   }
 }
 
+function decodeHtmlEntities(str) {
+  return String(str || '')
+    .replace(/&quot;/g, '"')
+    .replace(/&#34;/g, '"')
+    .replace(/&laquo;/g, '«')
+    .replace(/&raquo;/g, '»')
+    .replace(/&amp;/g, '&');
+}
+
 function normalizeText(s) {
   return String(s || '')
     .toLowerCase()
@@ -59,7 +68,7 @@ function canonicalExtraMetricName(headerText) {
 function prettyExtraGroupTitle(headerText) {
   const raw = stripTrailingConceptName(headerText).trim();
   if (!raw) return '';
-  return raw.charAt(0).toUpperCase() + raw.slice(1);
+  return decodeHtmlEntities(raw.charAt(0).toUpperCase() + raw.slice(1));
 }
 
 function groupExtraCandidates(extraCandidates) {
@@ -532,7 +541,7 @@ function splitHeaderRows(data) {
 
   const questionTexts = (data[0] || []).map(v => String(v || '').trim());
   const varNames = (data[1] || []).map(v => String(v || '').trim());
-  const header = questionTexts.map((txt, i) => txt || varNames[i] || `col_${i}`);
+  const header = questionTexts.map((txt, i) => decodeHtmlEntities(txt || varNames[i] || `col_${i}`));
   const rows = data.slice(2).filter(r => r && r.some(v => v !== null && v !== ''));
 
   return { header, rows };
@@ -1750,10 +1759,10 @@ function makeAgeSheetStyled(ageData, ageSignif, totalStdRes, totalExtraRes, conc
   setCell(ws, row, 0, 'ВОЗРАСТ', STYLES.title);
   mergeRange(ws, row, 0, row, lastCol);
   row++;
-  setCell(ws, row, 0, '', { ...STYLES.percentGreen, alignment: { horizontal: 'center', vertical: 'center' } });
-  setCell(ws, row, 1, 'значимо выше ТОТАЛ', STYLES.base);
+  setCell(ws, row, 0, '', { ...STYLES.percentGreen, alignment: { horizontal: 'center', vertical: 'center' }, fill: { fgColor: { rgb: '93C47D' } } });
+  setCell(ws, row, 1, 'значимо выше ТОТАЛ', { ...STYLES.base, fill: undefined });
   setCell(ws, row, 3, '', { ...STYLES.percent, fill: { fgColor: { rgb: 'F4CCCC' } }, alignment: { horizontal: 'center', vertical: 'center' } });
-  setCell(ws, row, 4, 'значимо ниже ТОТАЛ', STYLES.base);
+  setCell(ws, row, 4, 'значимо ниже ТОТАЛ', { ...STYLES.base, fill: undefined });
   mergeRange(ws, row, 1, row, 2);
   mergeRange(ws, row, 4, row, 6);
   row++;
