@@ -1326,6 +1326,12 @@ function blockValueRows(stdRes, key) {
 }
 
 
+function signifCellText(value, letters) {
+  const pctText = Math.round((value || 0) * 100) + '%';
+  if (!letters || !letters.length) return pctText;
+  return `${pctText} ${letters.join(',')}`;
+}
+
 function extraSignifMap(extraResults, concepts) {
   const out = {};
   (extraResults || []).forEach(item => {
