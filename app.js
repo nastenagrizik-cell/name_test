@@ -1569,6 +1569,46 @@ function makeSignifSheetStyled(stdRes, concepts, signifRes, extraResults = []) {
   return ws;
 }
 
+function calcAgeBreakdown(rows, config, concepts, header) {
+  const ageColIdx = config.std.audience.age;
+  if (ageColIdx == null || ageColIdx < 0) return null;
+
+  function parseAge(v) {
+    if (v == null || v === '') return null;
+    if (typeof v === 'number') return v;
+    const m = String(v).match(/(\d+)/);
+    return m ? Number(m[1]) : null;
+  }
+
+  const defs = [
+    { key: '18-24', label: '18-24', min: 18, max: 24 },
+    { key: '25-34', label: '25-34', min: 25, max: 34 },
+    { key: '35-44', label: '35-44', min: 35, max: 44 },
+    { key: '45+', label: '45+', min: 45, max: 200 }
+  ];
+
+  const buckets = defs.map(def => ({ ...def, rows: [] }));
+  let unassigned = 0;
+
+  rows.forEach(r => {
+    const age = parseAge(getCell(r, ageColIdx));
+    const found = buckets.find(g => age != null && age >= g.min && age <= g.max);
+    if (found) found.rows.push(r); else unassigned++;
+  });
+
+  return {
+    total: rows.length,
+    unassigned,
+    groups: buckets.map(g => ({
+      key: g.key,
+      label: g.label,
+      n: g.rows.length,
+      stdRes: calcStandardBlocks(g.rows, config, concepts, header),
+      extraRes: calcExtraBlocks(g.rows, config, concepts, header)
+    }))
+  };
+}
+
 function calcAgeSignificance(ageData, totalStdRes, concepts, totalExtraRes = []) {
   const alphaZ = 1.96;
   const out = { main: {}, image: {}, extra: {} };
