@@ -1340,6 +1340,27 @@ function withAlignCenter(style) {
   return { ...style, alignment: { ...(style.alignment || {}), horizontal: 'center', vertical: 'center' } };
 }
 
+
+function significanceLettersForValues(values, concepts) {
+  return values.map((v, i) => {
+    const greater = [];
+    values.forEach((q, j) => {
+      if (i === j) return;
+      const z = zTest(v || 0, q || 0, 1000, 1000);
+      if (z > 1.96) greater.push(concepts[j].code);
+    });
+    return greater;
+  });
+}
+
+function baseStyleNoBlue(level) {
+  return level === 'top2' ? { ...STYLES.percent, fill: undefined } : STYLES.percent;
+}
+
+function labelStyleNoBlue(level) {
+  return level === 'top2' ? { ...STYLES.label, fill: undefined } : STYLES.label;
+}
+
 function extraBlockValueRows(item) {
   if (item.kind !== 'scale5_by_concept') return [];
   return [
@@ -1498,8 +1519,8 @@ function makeFullSheetStyled(stdRes, concepts, extraResults = []) {
     mergeRange(ws, row, 0, row, lastCol);
     row++;
     blockValueRows(stdRes, key).forEach(([label, vals, level]) => {
-      setCell(ws, row, 0, label, level === 'top2' ? STYLES.top2Label : STYLES.label);
-      vals.forEach((v, i) => setPercent(ws, row, i + 1, v, level === 'top2' ? STYLES.top2Row : STYLES.percent));
+      setCell(ws, row, 0, label, level === 'top2' ? { ...STYLES.label, fill: undefined } : STYLES.label);
+      vals.forEach((v, i) => setPercent(ws, row, i + 1, v, level === 'top2' ? { ...STYLES.percent, fill: undefined } : STYLES.percent));
       row++;
     });
     row++;
@@ -1510,8 +1531,8 @@ function makeFullSheetStyled(stdRes, concepts, extraResults = []) {
     mergeRange(ws, row, 0, row, lastCol);
     row++;
     extraBlockValueRows(item).forEach(([label, values, level]) => {
-      setCell(ws, row, 0, label, level === 'top2' ? STYLES.top2Label : STYLES.label);
-      values.forEach((value, i) => setPercent(ws, row, i + 1, value, level === 'top2' ? STYLES.top2Row : STYLES.percent));
+      setCell(ws, row, 0, label, level === 'top2' ? { ...STYLES.label, fill: undefined } : STYLES.label);
+      values.forEach((value, i) => setPercent(ws, row, i + 1, value, level === 'top2' ? { ...STYLES.percent, fill: undefined } : STYLES.percent));
       row++;
     });
     row++;
@@ -1607,10 +1628,10 @@ function makeSignifSheetStyled(stdRes, concepts, signifRes, extraResults = []) {
     row++;
     leftRows.forEach((lrow, idx) => {
       const rrow = rightRows[idx] || lrow;
-      setCell(ws, row, 0, lrow.label, lrow.level === 'top2' ? STYLES.top2Label : STYLES.label);
-      lrow.values.forEach((v, i) => setPercent(ws, row, i + 1, v, lrow.green?.[i] ? STYLES.percentGreen : (lrow.level === 'top2' ? STYLES.top2Row : STYLES.percent)));
-      setCell(ws, row, rightStart, rrow.label, rrow.level === 'top2' ? STYLES.top2Label : STYLES.label);
-      rrow.values.forEach((v, i) => setCell(ws, row, rightStart + i + 1, signifCellText(v, rrow.letters?.[i]), rrow.green?.[i] ? STYLES.signifTextGreen : (rrow.level === 'top2' ? STYLES.top2Label : STYLES.label)));
+      setCell(ws, row, 0, lrow.label, lrow.level === 'top2' ? { ...STYLES.label, fill: undefined } : STYLES.label);
+      lrow.values.forEach((v, i) => setPercent(ws, row, i + 1, v, lrow.green?.[i] ? STYLES.percentGreen : baseStyleNoBlue(lrow.level)));
+      setCell(ws, row, rightStart, rrow.label, rrow.level === 'top2' ? { ...STYLES.label, fill: undefined } : STYLES.label);
+      rrow.values.forEach((v, i) => setCell(ws, row, rightStart + i + 1, signifCellText(v, rrow.letters?.[i]), rrow.green?.[i] ? STYLES.signifTextGreen : labelStyleNoBlue(rrow.level)));
       row++;
     });
     row++;
@@ -1618,12 +1639,12 @@ function makeSignifSheetStyled(stdRes, concepts, signifRes, extraResults = []) {
 
   [['НАСКОЛЬКО НРАВИТСЯ НАЗВАНИЕ','like'],['НАСКОЛЬКО ПОДХОДИТ ДЛЯ ЭТОГО ПРОДУКТА','fitDish'],['НАСКОЛЬКО ПОДХОДИТ ДЛЯ БРЕНДА БУРГЕР КИНГ В ЦЕЛОМ','fitBrand'],['НАМЕРЕНИЕ ПОСЕТИТЬ БК','visitBK'],['НАМЕРЕНИЕ КУПИТЬ ПО ПРИЕМЛЕМОЙ ЦЕНЕ','buyDish'],['НАМЕРЕНИЕ РАССКАЗАТЬ / ПОДЕЛИТЬСЯ','shareIntent']].forEach(([title,key]) => {
     if (!hasMetric(stdRes,key)) return;
-    const rows = blockValueRows(stdRes,key).map(([label, values, level]) => ({ label, values, level, green: level === 'top2' ? concepts.map((_,i)=>isStrong2Plus(signifRes.top2[key], i)) : Array(values.length).fill(false), letters: level === 'top2' ? signifRes.top2[key] : Array(values.length).fill([]) }));
+    const rows = blockValueRows(stdRes,key).map(([label, values, level]) => ({ label, values, level, green: level === 'top2' ? concepts.map((_,i)=>isStrong2Plus(signifRes.top2[key], i)) : significanceLettersForValues(values, concepts).map(arr => arr.length >= 2), letters: level === 'top2' ? signifRes.top2[key] : significanceLettersForValues(values, concepts) }));
     writeSection(title, rows, rows);
   });
 
   extraResults.filter(x => x.where.includes('signif')).forEach(item => {
-    const rows = extraBlockValueRows(item).map(([label, values, level]) => ({ label, values, level, green: level === 'top2' ? concepts.map((_,i)=>isStrong2Plus(extraSig[item.title], i)) : Array(values.length).fill(false), letters: level === 'top2' ? extraSig[item.title] : Array(values.length).fill([]) }));
+    const rows = extraBlockValueRows(item).map(([label, values, level]) => ({ label, values, level, green: level === 'top2' ? concepts.map((_,i)=>isStrong2Plus(extraSig[item.title], i)) : significanceLettersForValues(values, concepts).map(arr => arr.length >= 2), letters: level === 'top2' ? extraSig[item.title] : significanceLettersForValues(values, concepts) }));
     writeSection(item.title.toUpperCase(), rows, rows);
   });
 
@@ -1729,7 +1750,14 @@ function makeAgeSheetStyled(ageData, ageSignif, totalStdRes, totalExtraRes, conc
   setCell(ws, row, 0, 'ВОЗРАСТ', STYLES.title);
   mergeRange(ws, row, 0, row, lastCol);
   row++;
-  setCell(ws, row, 0, 'Легенда: Total = общий результат; зеленая ячейка = значимо выше тотала; красная ячейка = значимо ниже тотала. Выборка: ' + ageData.groups.map(g => `${g.label} n=${g.n}`).join('; '), STYLES.base);
+  setCell(ws, row, 0, '', { ...STYLES.percentGreen, alignment: { horizontal: 'center', vertical: 'center' } });
+  setCell(ws, row, 1, 'значимо выше ТОТАЛ', STYLES.base);
+  setCell(ws, row, 3, '', { ...STYLES.percent, fill: { fgColor: { rgb: 'F4CCCC' } }, alignment: { horizontal: 'center', vertical: 'center' } });
+  setCell(ws, row, 4, 'значимо ниже ТОТАЛ', STYLES.base);
+  mergeRange(ws, row, 1, row, 2);
+  mergeRange(ws, row, 4, row, 6);
+  row++;
+  setCell(ws, row, 0, 'Выборка: ' + ageData.groups.map(g => `${g.label} n=${g.n}`).join('; '), STYLES.base);
   mergeRange(ws, row, 0, row, lastCol);
   row += 2;
 
@@ -1792,8 +1820,15 @@ function makeAgeSheetStyled(ageData, ageSignif, totalStdRes, totalExtraRes, conc
   const groupRanks = ageData.groups.map(group => concepts.map((c,i)=>({label:c.label,v:(group.stdRes.top2.like||[])[i]||0})).sort((a,b)=>b.v-a.v));
   for (let r = 0; r < concepts.length; r++) {
     setCell(ws, row, 0, String(r + 1), withAlignCenter(STYLES.label));
-    setCell(ws, row, 1, `${totalRank[r].label} (${Math.round(totalRank[r].v*100)}%)`, withAlignCenter(STYLES.label));
-    groupRanks.forEach((rank, gi) => setCell(ws, row, gi + 2, `${rank[r].label} (${Math.round(rank[r].v*100)}%)`, withAlignCenter(STYLES.label)));
+    setCell(ws, row, 1, totalRank[r].label, withAlignCenter(STYLES.label));
+    groupRanks.forEach((rank, gi) => {
+      const item = rank[r];
+      const totalPos = totalRank.findIndex(x => x.label === item.label);
+      const diff = totalPos - r;
+      const mark = diff >= 2 ? ' ↑' : (diff <= -2 ? ' ↓' : '');
+      const style = diff >= 2 ? { ...withAlignCenter(STYLES.label), font: { ...(STYLES.label.font || {}), color: { rgb: '2E7D32' }, bold: true } } : (diff <= -2 ? { ...withAlignCenter(STYLES.label), font: { ...(STYLES.label.font || {}), color: { rgb: 'C62828' }, bold: true } } : withAlignCenter(STYLES.label));
+      setCell(ws, row, gi + 2, item.label + mark, style);
+    });
     row++;
   }
 
