@@ -39,6 +39,50 @@ function normalizeText(s) {
     .trim();
 }
 
+
+function canonicalExtraMetricName(headerText) {
+  return normalizeText(headerText)
+    .replace(/^оцените,? пожалуйста,?\s*/, '')
+    .replace(/^для каждого названия\s*/, '')
+    .replace(/^насколько\s*/, '')
+    .replace(/^скажите,?\s*/, '')
+    .replace(/\bкажд(ое|ого|ым|ому)\b/g, '')
+    .replace(/\bиз этих названий\b/g, '')
+    .replace(/\bдля этого продукта\b/g, 'продукт')
+    .replace(/\bдля такого продукта\b/g, 'продукт')
+    .replace(/\bдля этого блюда\b/g, 'блюдо')
+    .replace(/\bдля такого блюда\b/g, 'блюдо')
+    .replace(/\bдля этого напитка\b/g, 'напиток')
+    .replace(/\bдля такого напитка\b/g, 'напиток')
+    .replace(/\bдля этого соуса\b/g, 'соус')
+    .replace(/\bдля такого соуса\b/g, 'соус')
+    .replace(/\bдля этого бургера\b/g, 'бургер')
+    .replace(/\bдля такого бургера\b/g, 'бургер')
+    .replace(/[?.!]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function titleCaseMetricName(s) {
+  const text = String(s || '').trim();
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : '';
+}
+
+function groupExtraCandidates(extraCandidates) {
+  const groups = new Map();
+  (extraCandidates || []).forEach(item => {
+    const key = canonicalExtraMetricName(item.header) || normalizeText(item.header);
+    if (!groups.has(key)) groups.set(key, { key, items: [] });
+    groups.get(key).items.push(item);
+  });
+  return Array.from(groups.values()).map(group => ({
+    ...group,
+    sampleHeader: group.items[0]?.header || '',
+    label: titleCaseMetricName(canonicalExtraMetricName(group.items[0]?.header || '') || group.items[0]?.header || '')
+  }));
+}
+
+
 function looksLikeFitDishQuestion(h) {
   const t = normalizeText(h);
   if (t.includes('для бренда бургер кинг')) return false;
@@ -695,88 +739,27 @@ function renderStandardMappingUI(mapping, header) {
 }
 
 function renderExtraQuestionsUI(mapping) {
+  const grouped = groupExtraCandidates(mapping.extraCandidates || []);
   extraQuestionsEl.innerHTML = '';
 
-  if (!mapping.extraCandidates.length) {
+  if (!grouped.length) {
     extraQuestionsEl.innerHTML = '<div class="status">Дополнительные закрытые вопросы не найдены.</div>';
     return;
   }
 
-  mapping.extraCandidates.forEach(q => {
+  grouped.forEach((group, i) => {
     const card = document.createElement('div');
     card.className = 'extra-card-compact';
-
-    const head = document.createElement('div');
-    head.className = 'extra-card-compact-head';
-    head.innerHTML = `
-      <div class="metric-group-title" style="font-size:14px">${q.header}</div>
-      <div class="metric-group-meta">
-        <span class="metric-badge found">доп. метрика</span>
-        <span class="metric-chevron">⌄</span>
-      </div>
-    `;
-
-    const body = document.createElement('div');
-    body.className = 'extra-card-compact-body';
-
-    body.innerHTML = `
-      <div class="field">
-        <label>
-          <input type="checkbox" data-extra-idx="${q.idx}" checked style="accent-color:var(--primary-2)">
-          Использовать этот вопрос как доп.метрику
-        </label>
-      </div>
-      <div class="row">
-        <div class="col-half">
-          <div class="field">
-            <label>Название метрики в топлайне</label>
-            <input type="text" data-extra-idx="${q.idx}" data-role="title" placeholder="Напр. Осведомленность">
-          </div>
-          <div class="field">
-            <label>Тип вопроса</label>
-            <select data-extra-idx="${q.idx}" data-role="type">
-              <option value="scale5">Шкала 1–5</option>
-              <option value="single">Single choice</option>
-            </select>
-          </div>
-        </div>
-        <div class="col-half">
-          <div class="field">
-            <label>Куда выводить</label>
-            <div class="pill-checkboxes" data-extra-idx="${q.idx}" data-role="where">
-              <label><input type="checkbox" value="summary" checked> САММАРИ</label>
-              <label><input type="checkbox" value="full" checked> полные таблицы</label>
-              <label><input type="checkbox" value="signif"> значимости</label>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    head.addEventListener('click', (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-      card.classList.toggle('open');
-    });
-
-    card.appendChild(head);
-    card.appendChild(body);
+    card.innerHTML = `<div class="extra-card-compact-head"><div><div class="metric-group-title">${group.label || group.sampleHeader}</div><div class="panel-subtitle" style="font-size:13px">${group.items.length > 1 ? `Найдено похожих формулировок: ${group.items.length}` : 'Одна формулировка'}</div></div><span class="metric-chevron">⌄</span></div><div class="extra-card-compact-body"><div class="field"><label for="extraGroupName_${i}">Название метрики в topline</label><input id="extraGroupName_${i}" type="text" data-extra-group-name="${group.key}" value="${group.label || group.sampleHeader}" /></div><div class="mapping-list">${group.items.map(item => `<label class="mapping-item"><input type="checkbox" data-extra-index="${item.idx}" data-extra-group="${group.key}" checked><span><strong>${item.header}</strong><br><small>Колонка ${item.idx + 1}</small></span></label>`).join('')}</div></div>`;
+    card.querySelector('.extra-card-compact-head').addEventListener('click', () => card.classList.toggle('open'));
     extraQuestionsEl.appendChild(card);
   });
 }
 
 function collectUserConfig(mapping) {
   const stdSelected = {
-    like: [],
-    fitDish: [],
-    fitBrand: [],
-    visitBK: [],
-    buyDish: [],
-    shareIntent: [],
-    directLike: [],
-    directBuy: [],
-    directShare: [],
-    image: mapping.std.image.slice(),
-    audience: mapping.std.audience
+    like: [], fitDish: [], fitBrand: [], visitBK: [], buyDish: [], shareIntent: [],
+    directLike: [], directBuy: [], directShare: [], image: mapping.std.image.slice(), audience: mapping.std.audience
   };
 
   document.querySelectorAll('input[type="checkbox"][data-std-key]').forEach(cb => {
@@ -786,28 +769,12 @@ function collectUserConfig(mapping) {
     stdSelected[key].push(idx);
   });
 
-  const extra = [];
-
-  mapping.extraCandidates.forEach(q => {
-    const enabledCb = document.querySelector(`input[type="checkbox"][data-extra-idx="${q.idx}"]`);
-    if (!enabledCb || !enabledCb.checked) return;
-
-    const titleInput = document.querySelector(`input[data-extra-idx="${q.idx}"][data-role="title"]`);
-    const typeSelect = document.querySelector(`select[data-extra-idx="${q.idx}"][data-role="type"]`);
-    const whereWrap = document.querySelector(`div[data-extra-idx="${q.idx}"][data-role="where"]`);
-
-    const title = (titleInput?.value || '').trim();
-    if (!title) throw new Error('У доп.вопроса "' + q.header + '" не задано название метрики.');
-
-    const qtype = typeSelect?.value || 'scale5';
-    const where = [];
-    whereWrap.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-      if (cb.checked) where.push(cb.value);
-    });
-
-    if (!where.length) throw new Error('У доп.метрики "' + title + '" не выбрано, куда выводить.');
-
-    extra.push({ idx: q.idx, header: q.header, title, type: qtype, where });
+  const extra = Array.from(extraQuestionsEl.querySelectorAll('[data-extra-index]:checked')).map(el => {
+    const groupKey = el.getAttribute('data-extra-group');
+    const nameInput = extraQuestionsEl.querySelector(`[data-extra-group-name="${groupKey}"]`);
+    const title = (nameInput?.value || '').trim();
+    if (!title) throw new Error('Не задано название одной из дополнительных метрик.');
+    return { idx: Number(el.getAttribute('data-extra-index')), header: '', title, type: 'scale5', where: ['summary','full','signif','age'], groupKey };
   });
 
   return { std: stdSelected, extra };
