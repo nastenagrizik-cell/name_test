@@ -444,7 +444,7 @@ if (typeof XLSX !== 'object') {
       const outWb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(outWb, makeSummarySheetStyled(stdResults, concepts, signifRes, extraResults), 'САММАРИ');
       XLSX.utils.book_append_sheet(outWb, makeFullSheetStyled(stdResults, concepts, extraResults), 'полные таблицы');
-      XLSX.utils.book_append_sheet(outWb, makeSignifSheetStyled(stdResults, concepts, signifRes), 'значимости');
+      XLSX.utils.book_append_sheet(outWb, makeSignifSheetStyled(stdResults, concepts, signifRes, extraResults), 'значимости');
       XLSX.utils.book_append_sheet(outWb, makeAudienceSheetStyled(audienceRes), 'Аудитория');
 
       if (ageToggle && ageToggle.checked) {
@@ -606,7 +606,7 @@ function autoDetectMapping(header) {
     std.audience.freqBK
   ].filter(v => v !== null && v !== undefined));
 
-  const extraCandidates = header.map((h, idx) => {
+  const rawCandidates = header.map((h, idx) => {
     if (used.has(idx)) return null;
     if (!h) return null;
 
@@ -625,8 +625,36 @@ function autoDetectMapping(header) {
     return { idx, header: h };
   }).filter(Boolean);
 
+  const extraCandidates = groupExtraCandidates(rawCandidates, concepts, header);
+
   return { std, extraCandidates };
 }
+
+function normalizeQuestionText(text, concepts) {
+  let s = String(text || '').trim();
+  concepts.forEach(c => {
+    if (c.label && c.label.length > 2) {
+      const escLabel = c.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp(escLabel, 'gi');
+      s = s.replace(re, '');
+    }
+  });
+  s = s.replace(/«[^»]*»/g, '');
+  s = s.replace(/"[^"]*"/g, '');
+  s = s.replace(/\s+/g, ' ').trim();
+  return s.toLowerCase();
+}
+        question: cand.header,
+        cols: [{ idx: cand.idx, header: cand.header, conceptIdx }],
+        conceptIdx
+      });
+      used.add(cand.idx);
+    }
+  });
+
+  return groups;
+}
+
 function renderStandardMappingUI(mapping, header) {
   const groups = [
     { key: 'like', label: 'Нравится название', type: 'шкала 1–5, Top‑2', indexes: mapping.std.like },
@@ -702,16 +730,20 @@ function renderExtraQuestionsUI(mapping) {
     return;
   }
 
-  mapping.extraCandidates.forEach(q => {
+  mapping.extraCandidates.forEach((group, gi) => {
     const card = document.createElement('div');
     card.className = 'extra-card-compact';
+
+    const colCount = group.cols.length;
+    const conceptCount = group.cols.filter(c => c.conceptIdx >= 0).length;
 
     const head = document.createElement('div');
     head.className = 'extra-card-compact-head';
     head.innerHTML = `
-      <div class="metric-group-title" style="font-size:14px">${q.header}</div>
+      <div class="metric-group-title" style="font-size:14px">${group.question}</div>
       <div class="metric-group-meta">
-        <span class="metric-badge found">доп. метрика</span>
+        <span class="metric-badge found">${colCount} ${colCount === 1 ? 'колонка' : 'колонок'}</span>
+        ${conceptCount > 1 ? `<span class="metric-badge found">${conceptCount} назв.</span>` : ''}
         <span class="metric-chevron">⌄</span>
       </div>
     `;
@@ -719,22 +751,27 @@ function renderExtraQuestionsUI(mapping) {
     const body = document.createElement('div');
     body.className = 'extra-card-compact-body';
 
+    const colsList = group.cols.map(c => c.header).map(h =>
+      `<div class="metric-line"><span class="metric-line-dot"></span><span class="metric-line-text"><strong>${h}</strong></span></div>`
+    ).join('');
+
     body.innerHTML = `
+      <div style="margin-bottom:12px">${colsList}</div>
       <div class="field">
         <label>
-          <input type="checkbox" data-extra-idx="${q.idx}" checked style="accent-color:var(--primary-2)">
-          Использовать этот вопрос как доп.метрику
+          <input type="checkbox" data-extra-group="${gi}" checked style="accent-color:var(--primary-2)">
+          Использовать эту группу вопросов как метрику
         </label>
       </div>
       <div class="row">
         <div class="col-half">
           <div class="field">
             <label>Название метрики в топлайне</label>
-            <input type="text" data-extra-idx="${q.idx}" data-role="title" placeholder="Напр. Осведомленность">
+            <input type="text" data-extra-group="${gi}" data-role="title" placeholder="Напр. Осведомленность">
           </div>
           <div class="field">
             <label>Тип вопроса</label>
-            <select data-extra-idx="${q.idx}" data-role="type">
+            <select data-extra-group="${gi}" data-role="type">
               <option value="scale5">Шкала 1–5</option>
               <option value="single">Single choice</option>
             </select>
@@ -743,7 +780,7 @@ function renderExtraQuestionsUI(mapping) {
         <div class="col-half">
           <div class="field">
             <label>Куда выводить</label>
-            <div class="pill-checkboxes" data-extra-idx="${q.idx}" data-role="where">
+            <div class="pill-checkboxes" data-extra-group="${gi}" data-role="where">
               <label><input type="checkbox" value="summary" checked> САММАРИ</label>
               <label><input type="checkbox" value="full" checked> полные таблицы</label>
               <label><input type="checkbox" value="signif"> значимости</label>
@@ -788,16 +825,16 @@ function collectUserConfig(mapping) {
 
   const extra = [];
 
-  mapping.extraCandidates.forEach(q => {
-    const enabledCb = document.querySelector(`input[type="checkbox"][data-extra-idx="${q.idx}"]`);
+  mapping.extraCandidates.forEach((group, gi) => {
+    const enabledCb = document.querySelector(`input[type="checkbox"][data-extra-group="${gi}"]`);
     if (!enabledCb || !enabledCb.checked) return;
 
-    const titleInput = document.querySelector(`input[data-extra-idx="${q.idx}"][data-role="title"]`);
-    const typeSelect = document.querySelector(`select[data-extra-idx="${q.idx}"][data-role="type"]`);
-    const whereWrap = document.querySelector(`div[data-extra-idx="${q.idx}"][data-role="where"]`);
+    const titleInput = document.querySelector(`input[data-extra-group="${gi}"][data-role="title"]`);
+    const typeSelect = document.querySelector(`select[data-extra-group="${gi}"][data-role="type"]`);
+    const whereWrap = document.querySelector(`div[data-extra-group="${gi}"][data-role="where"]`);
 
     const title = (titleInput?.value || '').trim();
-    if (!title) throw new Error('У доп.вопроса "' + q.header + '" не задано название метрики.');
+    if (!title) throw new Error('У доп.вопроса "' + group.question + '" не задано название метрики.');
 
     const qtype = typeSelect?.value || 'scale5';
     const where = [];
@@ -807,7 +844,9 @@ function collectUserConfig(mapping) {
 
     if (!where.length) throw new Error('У доп.метрики "' + title + '" не выбрано, куда выводить.');
 
-    extra.push({ idx: q.idx, header: q.header, title, type: qtype, where });
+    group.cols.forEach(col => {
+      extra.push({ idx: col.idx, header: col.header, title, type: qtype, where });
+    });
   });
 
   return { std: stdSelected, extra };
@@ -1407,9 +1446,6 @@ function makeSummarySheetStyled(stdRes, concepts, signifRes, extraResults = []) 
   const summaryExtras = extraResults.filter(x => x.where.includes('summary'));
   if (summaryExtras.length) {
     row++;
-    setCell(ws, row, 0, 'ДОПОЛНИТЕЛЬНЫЕ МЕТРИКИ', STYLES.section);
-    mergeRange(ws, row, 0, row, lastCol);
-    row++;
 
     summaryExtras.forEach(item => {
       if (item.kind === 'scale5') {
@@ -1484,10 +1520,6 @@ function makeFullSheetStyled(stdRes, concepts, extraResults = []) {
 
   const fullExtras = extraResults.filter(x => x.where.includes('full'));
   if (fullExtras.length) {
-    setCell(ws, row, 0, 'ДОПОЛНИТЕЛЬНЫЕ МЕТРИКИ', STYLES.section);
-    mergeRange(ws, row, 0, row, lastCol);
-    row++;
-
     fullExtras.forEach(item => {
       setCell(ws, row, 0, item.title, STYLES.blockTitle);
       mergeRange(ws, row, 0, row, lastCol);
@@ -1575,7 +1607,7 @@ function signifCellText(value, letters) {
   return letters && letters.length ? `${pct} ${letters.join(',')}` : pct;
 }
 
-function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, mode) {
+function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, mode, extraRes) {
   let row = startRow;
   const lastCol = startCol + concepts.length;
 
@@ -1630,6 +1662,36 @@ function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, m
 
     row++;
   });
+
+  if (extraRes && extraRes.length) {
+    const signifExtras = extraRes.filter(x => x.where.includes('signif'));
+    signifExtras.forEach(item => {
+      setCell(ws, row, startCol, item.title, STYLES.blockTitle);
+      mergeRange(ws, row, startCol, row, lastCol);
+      row++;
+
+      if (item.kind === 'scale5_by_concept' && Array.isArray(item.dist)) {
+        setCell(ws, row, startCol, 'ТОП-2 (4+5)', STYLES.top2Label);
+        item.dist.forEach((d, i) => {
+          setPercent(ws, row, startCol + 1 + i, d.top2, STYLES.top2Row);
+        });
+        row++;
+      } else if (item.kind === 'scale5' && item.dist) {
+        setCell(ws, row, startCol, 'ТОП-2 (4+5)', STYLES.top2Label);
+        setPercent(ws, row, startCol + 1, item.dist.top2, STYLES.top2Row);
+        mergeRange(ws, row, startCol + 1, row, lastCol);
+        row++;
+      } else if (item.kind === 'single' && Array.isArray(item.dist)) {
+        item.dist.forEach(d => {
+          setCell(ws, row, startCol, d.cat, STYLES.label);
+          setPercent(ws, row, startCol + 1, d.p, STYLES.percent);
+          mergeRange(ws, row, startCol + 1, row, lastCol);
+          row++;
+        });
+      }
+      row++;
+    });
+  }
 
   const imageEntries = Object.entries(stdRes.image || {});
   if (imageEntries.length) {
@@ -1704,7 +1766,7 @@ function writeSignifBlock(ws, startRow, startCol, stdRes, concepts, signifRes, m
   return { endRow: row, endCol: lastCol };
 }
 
-function makeSignifSheetStyled(stdRes, concepts, signifRes) {
+function makeSignifSheetStyled(stdRes, concepts, signifRes, extraResults) {
   const ws = {};
 
   const leftCols = [{ wch: 42 }, ...Array.from({ length: concepts.length }, () => ({ wch: 15 }))];
@@ -1713,9 +1775,9 @@ function makeSignifSheetStyled(stdRes, concepts, signifRes) {
 
   ws['!cols'] = [...leftCols, ...spacer, ...rightCols];
 
-  const left = writeSignifBlock(ws, 0, 0, stdRes, concepts, signifRes, 'green');
+  const left = writeSignifBlock(ws, 0, 0, stdRes, concepts, signifRes, 'green', extraResults);
   const rightStart = leftCols.length + 1;
-  const right = writeSignifBlock(ws, 0, rightStart, stdRes, concepts, signifRes, 'letters');
+  const right = writeSignifBlock(ws, 0, rightStart, stdRes, concepts, signifRes, 'letters', extraResults);
 
   applySheetRangeRef(ws, Math.max(left.endRow, right.endRow), Math.max(left.endCol, right.endCol));
   return ws;
@@ -1795,29 +1857,44 @@ function calcAgeSignificance(ageData, totalStdRes, concepts) {
 }
 
 const AGE_STYLES = {
-  ageHeader: { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: hexFill('3C78B5'), alignment: { horizontal: 'center', vertical: 'center' }, border: borderAll() },
-  ageGroupHeader: { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: hexFill('5E86B4'), alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: borderAll() },
+  conceptHeader: { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: hexFill('2F5597'), alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border: borderAll() },
+  totalHeader: { font: { bold: true, color: { rgb: '4A4A4A' } }, fill: hexFill('D9D9D9'), alignment: { horizontal: 'center', vertical: 'center' }, border: borderAll() },
+  ageHeader: { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: hexFill('5B8DBF'), alignment: { horizontal: 'center', vertical: 'center' }, border: borderAll() },
+  totalCell: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('E8E8E8'), font: { bold: true, color: { rgb: '4A4A4A' } }, border: borderAll() },
+  totalCellTop2: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('D6D6D6'), font: { bold: true, color: { rgb: '333333' } }, border: borderAll() },
   percentGreen: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('70AD47'), font: { bold: true, color: { rgb: 'FFFFFF' } }, border: borderAll() },
   percentRed: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('C84D4D'), font: { bold: true, color: { rgb: 'FFFFFF' } }, border: borderAll() },
   legendGreen: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('70AD47'), font: { bold: true, color: { rgb: 'FFFFFF' } }, border: borderAll() },
-  legendRed: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('C84D4D'), font: { bold: true, color: { rgb: 'FFFFFF' } }, border: borderAll() }
+  legendRed: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('C84D4D'), font: { bold: true, color: { rgb: 'FFFFFF' } }, border: borderAll() },
+  rankFirst: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('B8E0B0'), font: { bold: true, color: { rgb: '1B5E20' } }, border: borderAll() },
+  rankSecond: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('D0E8C0'), font: { bold: true, color: { rgb: '2E7D32' } }, border: borderAll() },
+  rankThird: { alignment: { horizontal: 'center', vertical: 'center' }, fill: hexFill('E8F0E0'), font: { bold: true, color: { rgb: '558B2F' } }, border: borderAll() },
+  imageLabel: { alignment: { horizontal: 'left', vertical: 'center', wrapText: true }, font: { size: 10, color: { rgb: '555555' } }, border: borderAll() }
 };
 
 function makeAgeSheetStyled(ageData, ageSignif, totalStdRes, totalExtraRes, concepts) {
   const ws = {};
   const numConcepts = concepts.length;
-  const numAgeGroups = AGE_GROUPS.length;
-  const lastCol = 1 + numConcepts * numAgeGroups;
+  const colsPerConcept = 1 + AGE_GROUPS.length;
+  const lastCol = 1 + numConcepts * colsPerConcept;
 
-  ws['!cols'] = [{ wch: 38 }, ...Array.from({ length: numConcepts * numAgeGroups }, () => ({ wch: 13 }))];
+  ws['!cols'] = [{ wch: 32 }, ...Array.from({ length: numConcepts * colsPerConcept }, () => ({ wch: 12 }))];
 
   let row = 0;
+  const COL_TOTAL = 0;
+  const COL_18 = 1, COL_25 = 2, COL_35 = 3, COL_45 = 4;
+  const ageColOffsets = [COL_TOTAL, COL_18, COL_25, COL_35, COL_45];
+  const ageColLabels = ['Тотал', '18-24', '25-34', '35-44', '45+'];
 
-  setCell(ws, row, 0, 'РАЗБИВКА ПО ВОЗРАСТАМ: ТОП-2 (сумма оценок 4 и 5)', STYLES.title);
+  setCell(ws, row, 0, 'РАЗБИВКА ПО ВОЗРАСТАМ', STYLES.title);
   mergeRange(ws, row, 0, row, lastCol);
   row++;
 
-  setCell(ws, row, 0, `База: n=${ageData.totalN} респондентов | Все значения в %`, STYLES.base);
+  const groupSizes = AGE_GROUPS.map(g => {
+    const gd = ageData.groups[g.key];
+    return `${g.label}: n=${gd ? gd.n : 0}`;
+  }).join('  |  ');
+  setCell(ws, row, 0, `Тотал: n=${ageData.totalN}  |  ${groupSizes}`, STYLES.base);
   mergeRange(ws, row, 0, row, lastCol);
   row++;
 
@@ -1829,223 +1906,208 @@ function makeAgeSheetStyled(ageData, ageSignif, totalStdRes, totalExtraRes, conc
   row++;
   row++;
 
-  // Two-row header: age group names spanning concept columns, concept labels underneath
-  setCell(ws, row, 0, 'Метрика', STYLES.headerCenter);
-  let col = 1;
-  AGE_GROUPS.forEach(g => {
-    setCell(ws, row, col, g.label, AGE_STYLES.ageGroupHeader);
-    mergeRange(ws, row, col, row, col + numConcepts - 1);
-    col += numConcepts;
-  });
-  row++;
-
-  setCell(ws, row, 0, '', STYLES.headerCenter);
-  col = 1;
-  AGE_GROUPS.forEach(() => {
-    concepts.forEach(c => {
-      setCell(ws, row, col, c.label, AGE_STYLES.ageHeader);
-      col++;
+  function writeConceptHeader() {
+    setCell(ws, row, 0, 'Метрика', STYLES.headerCenter);
+    let c = 1;
+    concepts.forEach(concept => {
+      setCell(ws, row, c, concept.label, AGE_STYLES.conceptHeader);
+      mergeRange(ws, row, c, row, c + colsPerConcept - 1);
+      c += colsPerConcept;
     });
-  });
-  row++;
-  row++;
-
-  function writeAgeMetricBlock(blockTitle, metricKey, totalArr) {
-    if (!totalArr) return;
-
-    setCell(ws, row, 0, blockTitle, STYLES.blockTitle);
-    mergeRange(ws, row, 0, row, lastCol);
     row++;
 
-    setCell(ws, row, 0, 'ТОП-2 (4+5)', STYLES.top2Label);
-    col = 1;
-    AGE_GROUPS.forEach(g => {
-      const gd = ageData.groups[g.key];
-      const signif = ageSignif[g.key];
-      concepts.forEach((c, i) => {
-        let style = STYLES.top2Row;
-        let val = 0;
-        if (gd && gd.stdRes.top2[metricKey]) {
-          val = gd.stdRes.top2[metricKey][i];
-          if (signif && signif.top2[metricKey] && signif.top2[metricKey][i]) {
-            if (signif.top2[metricKey][i].higher) style = AGE_STYLES.percentGreen;
-            else if (signif.top2[metricKey][i].lower) style = AGE_STYLES.percentRed;
-          }
-        }
-        setPercent(ws, row, col, val, style);
-        col++;
+    setCell(ws, row, 0, '', STYLES.headerCenter);
+    c = 1;
+    concepts.forEach(() => {
+      ageColLabels.forEach(lbl => {
+        const style = lbl === 'Тотал' ? AGE_STYLES.totalHeader : AGE_STYLES.ageHeader;
+        setCell(ws, row, c, lbl, style);
+        c++;
       });
     });
     row++;
     row++;
   }
 
-  [
+  function getAgeVal(gd, getter, i) {
+    if (!gd) return null;
+    return getter(gd, i);
+  }
+
+  function writeMetricRow(label, getter, isTop2) {
+    setCell(ws, row, 0, label, isTop2 ? STYLES.top2Label : STYLES.label);
+    let c = 1;
+    concepts.forEach((concept, i) => {
+      const totalVal = getter(totalStdRes, i);
+      setPercent(ws, row, c, totalVal != null ? totalVal : 0, isTop2 ? AGE_STYLES.totalCellTop2 : AGE_STYLES.totalCell);
+      c++;
+
+      AGE_GROUPS.forEach((g, gi) => {
+        const gd = ageData.groups[g.key];
+        const signif = ageSignif[g.key];
+        let style = isTop2 ? STYLES.top2Row : STYLES.percent;
+        let val = 0;
+
+        const gVal = getAgeVal(gd, getter, i);
+        if (gVal != null) val = gVal;
+
+        if (signif) {
+          const sigFlags = signif.top2[label] || signif.image[label];
+          if (sigFlags && sigFlags[i]) {
+            if (sigFlags[i].higher) style = AGE_STYLES.percentGreen;
+            else if (sigFlags[i].lower) style = AGE_STYLES.percentRed;
+          }
+        }
+
+        setPercent(ws, row, c, val, style);
+        c++;
+      });
+    });
+    row++;
+  }
+
+  function writeDirectRow(label, key, signifKey) {
+    setCell(ws, row, 0, label, STYLES.label);
+    let c = 1;
+    concepts.forEach((concept, i) => {
+      const totalVal = totalStdRes.direct[key] ? totalStdRes.direct[key].perConcept[i] : 0;
+      setPercent(ws, row, c, totalVal, AGE_STYLES.totalCell);
+      c++;
+
+      AGE_GROUPS.forEach(g => {
+        const gd = ageData.groups[g.key];
+        const signif = ageSignif[g.key];
+        let style = STYLES.percent;
+        let val = 0;
+        if (gd && gd.stdRes.direct[key]) val = gd.stdRes.direct[key].perConcept[i];
+        if (signif && signif.directMax[signifKey] && signif.directMax[signifKey][i]) style = AGE_STYLES.percentGreen;
+        setPercent(ws, row, c, val, style);
+        c++;
+      });
+    });
+    row++;
+  }
+
+  function writeExtraRow(label, exIdx) {
+    setCell(ws, row, 0, label, STYLES.label);
+    let c = 1;
+    concepts.forEach((concept, i) => {
+      let totalVal = 0;
+      if (totalExtraRes && totalExtraRes[exIdx]) {
+        const ex = totalExtraRes[exIdx];
+        if (ex.kind === 'scale5_by_concept' && Array.isArray(ex.dist)) totalVal = ex.dist[i] ? ex.dist[i].top2 : 0;
+        else if (ex.kind === 'scale5' && ex.dist) totalVal = ex.dist.top2 || 0;
+        else if (ex.kind === 'single' && Array.isArray(ex.dist)) totalVal = ex.dist[0] ? ex.dist[0].p : 0;
+      }
+      setPercent(ws, row, c, totalVal, AGE_STYLES.totalCell);
+      c++;
+
+      AGE_GROUPS.forEach(g => {
+        const gd = ageData.groups[g.key];
+        let val = 0;
+        if (gd && gd.extraRes && gd.extraRes[exIdx]) {
+          const exData = gd.extraRes[exIdx];
+          if (exData.kind === 'scale5_by_concept' && Array.isArray(exData.dist)) val = exData.dist[i] ? exData.dist[i].top2 : 0;
+          else if (exData.kind === 'scale5' && exData.dist) val = exData.dist.top2 || 0;
+          else if (exData.kind === 'single' && Array.isArray(exData.dist)) val = exData.dist[0] ? exData.dist[0].p : 0;
+        }
+        setPercent(ws, row, c, val, STYLES.percent);
+        c++;
+      });
+    });
+    row++;
+  }
+
+  writeConceptHeader();
+
+  const stdMetrics = [
     ['Нравится название', 'like'],
     ['Подходит для блюда / продукта', 'fitDish'],
     ['Подходит для бренда', 'fitBrand'],
     ['Намерение посетить БК', 'visitBK'],
     ['Намерение купить', 'buyDish'],
     ['Намерение рассказать / поделиться', 'shareIntent']
-  ].forEach(([label, key]) => {
-    if (hasMetric(totalStdRes, key)) {
-      writeAgeMetricBlock(label, key, totalStdRes.top2[key]);
-    }
+  ];
+
+  stdMetrics.forEach(([label, key]) => {
+    if (!hasMetric(totalStdRes, key)) return;
+    writeMetricRow(label, (res, i) => res.top2[key] ? res.top2[key][i] : null, true);
   });
 
-  // Image block
+  if (totalExtraRes && totalExtraRes.length) {
+    totalExtraRes.forEach((ex, exIdx) => {
+      writeExtraRow(ex.title || `Метрика ${exIdx + 1}`, exIdx);
+    });
+  }
+
+  const hasDirect = totalStdRes.direct.likeMost || totalStdRes.direct.buyFirst || totalStdRes.direct.shareFirst;
+  if (hasDirect) {
+    row++;
+    if (totalStdRes.direct.likeMost) writeDirectRow('Нравится больше всего', 'likeMost', 'likeMost');
+    if (totalStdRes.direct.buyFirst) writeDirectRow('Куплю в первую очередь', 'buyFirst', 'buyFirst');
+    if (totalStdRes.direct.shareFirst) writeDirectRow('Рассказал(а) бы в первую очередь', 'shareFirst', 'shareFirst');
+  }
+
   const imageEntries = Object.entries(totalStdRes.image || {});
   if (imageEntries.length) {
-    setCell(ws, row, 0, 'ИМИДЖЕВЫЙ БЛОК', STYLES.section);
+    row++;
+    setCell(ws, row, 0, 'ИМИДЖЕВЫЕ ВЫСКАЗЫВАНИЯ', STYLES.section);
     mergeRange(ws, row, 0, row, lastCol);
     row++;
 
-    imageEntries.forEach(([label, totalVals]) => {
-      setCell(ws, row, 0, label, STYLES.label);
-      col = 1;
-      AGE_GROUPS.forEach(g => {
-        const gd = ageData.groups[g.key];
-        const signif = ageSignif[g.key];
-        concepts.forEach((c, i) => {
-          let style = STYLES.percent;
-          let val = 0;
-          if (gd && gd.stdRes.image[label]) {
-            val = gd.stdRes.image[label][i];
-            if (signif && signif.image[label] && signif.image[label][i]) {
-              if (signif.image[label][i].higher) style = AGE_STYLES.percentGreen;
-              else if (signif.image[label][i].lower) style = AGE_STYLES.percentRed;
-            }
-          }
-          setPercent(ws, row, col, val, style);
-          col++;
-        });
-      });
-      row++;
+    imageEntries.forEach(([imgLabel]) => {
+      const shortLabel = imgLabel.length > 40 ? imgLabel.substring(0, 37) + '...' : imgLabel;
+      writeMetricRow(shortLabel, (res, i) => res.image && res.image[imgLabel] ? res.image[imgLabel][i] : null, false);
     });
-    row++;
   }
 
-  // Direct comparison
-  const hasDirectLike = !!totalStdRes.direct.likeMost;
-  const hasDirectBuy = !!totalStdRes.direct.buyFirst;
-  const hasDirectShare = !!totalStdRes.direct.shareFirst;
-
-  if (hasDirectLike || hasDirectBuy || hasDirectShare) {
-    setCell(ws, row, 0, 'ПРЯМОЕ СРАВНЕНИЕ', STYLES.section);
-    mergeRange(ws, row, 0, row, lastCol);
-    row++;
-
-    if (hasDirectLike) {
-      setCell(ws, row, 0, 'Нравится больше всего', STYLES.label);
-      col = 1;
-      AGE_GROUPS.forEach(g => {
-        const gd = ageData.groups[g.key];
-        const signif = ageSignif[g.key];
-        concepts.forEach((c, i) => {
-          let style = STYLES.percent;
-          let val = 0;
-          if (gd && gd.stdRes.direct.likeMost) {
-            val = gd.stdRes.direct.likeMost.perConcept[i];
-            if (signif && signif.directMax.likeMost && signif.directMax.likeMost[i]) style = AGE_STYLES.percentGreen;
-          }
-          setPercent(ws, row, col, val, style);
-          col++;
-        });
-      });
-      row++;
-    }
-
-    if (hasDirectBuy) {
-      setCell(ws, row, 0, 'Куплю в первую очередь', STYLES.label);
-      col = 1;
-      AGE_GROUPS.forEach(g => {
-        const gd = ageData.groups[g.key];
-        const signif = ageSignif[g.key];
-        concepts.forEach((c, i) => {
-          let style = STYLES.percent;
-          let val = 0;
-          if (gd && gd.stdRes.direct.buyFirst) {
-            val = gd.stdRes.direct.buyFirst.perConcept[i];
-            if (signif && signif.directMax.buyFirst && signif.directMax.buyFirst[i]) style = AGE_STYLES.percentGreen;
-          }
-          setPercent(ws, row, col, val, style);
-          col++;
-        });
-      });
-      row++;
-    }
-
-    if (hasDirectShare) {
-      setCell(ws, row, 0, 'Рассказал(а) бы в первую очередь', STYLES.label);
-      col = 1;
-      AGE_GROUPS.forEach(g => {
-        const gd = ageData.groups[g.key];
-        const signif = ageSignif[g.key];
-        concepts.forEach((c, i) => {
-          let style = STYLES.percent;
-          let val = 0;
-          if (gd && gd.stdRes.direct.shareFirst) {
-            val = gd.stdRes.direct.shareFirst.perConcept[i];
-            if (signif && signif.directMax.shareFirst && signif.directMax.shareFirst[i]) style = AGE_STYLES.percentGreen;
-          }
-          setPercent(ws, row, col, val, style);
-          col++;
-        });
-      });
-      row++;
-    }
-    row++;
-  }
-
-  // Extra metrics
-  if (totalExtraRes && totalExtraRes.length) {
-    setCell(ws, row, 0, 'ДОПОЛНИТЕЛЬНЫЕ МЕТРИКИ', STYLES.section);
-    mergeRange(ws, row, 0, row, lastCol);
-    row++;
-
-    totalExtraRes.forEach((ex, exIdx) => {
-      const exLabel = ex.title || `Метрика ${exIdx + 1}`;
-      setCell(ws, row, 0, exLabel, STYLES.label);
-      col = 1;
-      AGE_GROUPS.forEach(g => {
-        const gd = ageData.groups[g.key];
-        concepts.forEach((c, i) => {
-          let style = STYLES.percent;
-          let val = 0;
-          if (gd && gd.extraRes && gd.extraRes[exIdx]) {
-            const exData = gd.extraRes[exIdx];
-            if (exData.kind === 'scale5_by_concept' && Array.isArray(exData.dist)) {
-              val = exData.dist[i] ? exData.dist[i].top2 : 0;
-            } else if (exData.kind === 'scale5' && exData.dist) {
-              val = exData.dist.top2 || 0;
-            } else if (exData.kind === 'single' && Array.isArray(exData.dist)) {
-              val = exData.dist[0] ? exData.dist[0].p : 0;
-            }
-          }
-          setPercent(ws, row, col, val, style);
-          col++;
-        });
-      });
-      row++;
-    });
-    row++;
-  }
-
-  // Sample sizes per age group
-  setCell(ws, row, 0, 'Размер выборки по возрастным группам', STYLES.blockTitle);
+  row++;
+  row++;
+  setCell(ws, row, 0, 'РЕНКИНГ НАЗВАНИЙ ПО ВОЗРАСТНЫМ ГРУППАМ', STYLES.section);
   mergeRange(ws, row, 0, row, lastCol);
   row++;
 
-  setCell(ws, row, 0, 'Группа', STYLES.headerCenter);
-  setCell(ws, row, 1, 'n', STYLES.headerCenter);
-  mergeRange(ws, row, 1, row, lastCol);
+  setCell(ws, row, 0, 'Возрастная группа', STYLES.headerCenter);
+  let c = 1;
+  concepts.forEach(concept => {
+    setCell(ws, row, c, concept.label, STYLES.headerCenter);
+    c++;
+  });
   row++;
 
-  AGE_GROUPS.forEach(g => {
-    const gd = ageData.groups[g.key];
-    setCell(ws, row, 0, g.label, STYLES.label);
-    setCell(ws, row, 1, gd ? gd.n : 0, STYLES.percent);
-    mergeRange(ws, row, 1, row, lastCol);
+  const rankMetricKeys = ['like', 'buyDish', 'shareIntent'];
+  const rankMetricLabels = ['Нравится', 'Купил бы', 'Поделился бы'];
+
+  rankMetricLabels.forEach((rankLabel, ri) => {
+    const metricKey = rankMetricKeys[ri];
+    if (!hasMetric(totalStdRes, metricKey)) return;
+
+    setCell(ws, row, 0, rankLabel, STYLES.blockTitle);
+    mergeRange(ws, row, 0, row, concepts.length);
+    row++;
+
+    AGE_GROUPS.forEach(g => {
+      const gd = ageData.groups[g.key];
+      setCell(ws, row, 0, g.label, STYLES.label);
+
+      if (!gd || !gd.stdRes.top2[metricKey]) {
+        for (let i = 0; i < numConcepts; i++) setCell(ws, row, 1 + i, '—', STYLES.percent);
+        row++;
+        return;
+      }
+
+      const vals = gd.stdRes.top2[metricKey];
+      const indexed = vals.map((v, i) => ({ v, i }));
+      const sorted = [...indexed].sort((a, b) => b.v - a.v);
+
+      const rankStyles = [AGE_STYLES.rankFirst, AGE_STYLES.rankSecond, AGE_STYLES.rankThird];
+      concepts.forEach((concept, i) => {
+        const rank = sorted.findIndex(s => s.i === i);
+        const style = rank >= 0 && rank < 3 ? rankStyles[rank] : STYLES.percent;
+        setPercent(ws, row, 1 + i, vals[i], style);
+      });
+      row++;
+    });
     row++;
   });
 
