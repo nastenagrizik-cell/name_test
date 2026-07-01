@@ -3,256 +3,85 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Topline Generator</title>
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <title>Topline generator</title>
+<script src="https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <style>
-    :root {
-      --bg: #f7f1eb;
-      --surface: #fffdfa;
-      --surface-2: #f4ede6;
-      --border: #e7d8c9;
-      --text: #2d241c;
-      --muted: #786d63;
-      --primary: #8a4b2a;
-      --primary-2: #c9744a;
-      --accent: #e7b977;
-      --success: #e6f3da;
-      --success-border: #b7d39b;
-      --shadow: 0 10px 30px rgba(92, 61, 37, .10);
-      --radius: 22px;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: Inter, Arial, sans-serif;
-      color: var(--text);
-      background:
-        radial-gradient(circle at top left, rgba(233,190,120,.20), transparent 28%),
-        radial-gradient(circle at top right, rgba(201,116,74,.12), transparent 24%),
-        var(--bg);
-    }
-    .shell {
-      max-width: 1120px;
-      margin: 0 auto;
-      padding: 28px 24px 56px;
-    }
-    .hero {
-      background: linear-gradient(135deg, #7e4024 0%, #b5643d 58%, #d6925f 100%);
-      color: #fff9f4;
-      border-radius: 28px;
-      padding: 28px 32px;
-      box-shadow: var(--shadow);
-      margin-bottom: 22px;
-      position: relative;
-      overflow: hidden;
-    }
-    .hero::after {
-      content: "";
-      position: absolute;
-      inset: auto -80px -80px auto;
-      width: 220px;
-      height: 220px;
-      border-radius: 999px;
-      background: rgba(255,255,255,.10);
-      filter: blur(2px);
-    }
-    .hero h1 {
-      margin: 0 0 8px;
-      font-size: 34px;
-      line-height: 1.05;
-    }
-    .hero p {
-      margin: 0;
-      max-width: 760px;
-      color: rgba(255,249,244,.88);
-      font-size: 15px;
-      line-height: 1.5;
-    }
-    .layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      gap: 16px;
-    }
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 22px;
-    }
-    .step {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      color: var(--primary);
-      font-weight: 700;
-      margin-bottom: 10px;
-    }
-    h2 {
-      margin: 0 0 6px;
-      font-size: 28px;
-    }
-    .sub {
-      margin: 0 0 18px;
-      color: var(--muted);
-      font-size: 14px;
-    }
-    .upload-zone {
-      border: 1.5px dashed #d9c3ae;
-      background: linear-gradient(180deg, #fffdfa 0%, #fbf4ee 100%);
-      border-radius: 18px;
-      padding: 18px;
-    }
-    label.file-label {
-      display: block;
-      font-size: 13px;
-      font-weight: 600;
-      margin-bottom: 8px;
-    }
-    input[type="file"] {
-      width: 100%;
-      padding: 12px;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      background: #fff;
-    }
-    .status {
-      margin-top: 12px;
-      padding: 12px 14px;
-      border-radius: 14px;
-      background: #f7efe6;
-      color: var(--text);
-      white-space: pre-wrap;
-      border: 1px solid #ead8c7;
-      font-size: 14px;
-    }
-    .status.ok {
-      background: var(--success);
-      border-color: var(--success-border);
-    }
-    .status.error {
-      background: #fde8e8;
-      border-color: #efb4b4;
-      color: #7f2323;
-    }
-    .grid {
-      display: grid;
-      gap: 14px;
-    }
-    .metric-group, .extra-group {
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 16px;
-      background: linear-gradient(180deg, #fff 0%, #fffaf5 100%);
-    }
-    .metric-group-head, .extra-group-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: start;
-      gap: 12px;
-      margin-bottom: 10px;
-    }
-    .badge {
-      padding: 6px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 700;
-      background: #f3e4d8;
-      color: #7a4a2d;
-      border: 1px solid #e6c8b3;
-    }
-    .badge.found { background: #e7f3da; color: #426d2d; border-color: #bfd3a6; }
-    .badge.partial { background: #fff0d9; color: #8a5a10; border-color: #efcf94; }
-    .badge.missing { background: #fbe3e3; color: #8a2f2f; border-color: #efb4b4; }
-    .muted { color: var(--muted); font-size: 13px; }
-    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-    .row input[type="text"] {
-      min-width: 280px;
-      flex: 1 1 280px;
-      padding: 11px 12px;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: #fff;
-    }
-    .checks { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
-    .checks label, .switch {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 14px;
-    }
-    button#runBtn {
-      border: 0;
-      border-radius: 16px;
-      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 100%);
-      color: white;
-      padding: 14px 20px;
-      font-size: 15px;
-      font-weight: 700;
-      box-shadow: 0 10px 24px rgba(138,75,42,.22);
-    }
-    button#runBtn:disabled { opacity: .7; }
-    .runbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
-    .list {
-      margin: 10px 0 0;
-      padding-left: 18px;
-      color: var(--muted);
-      font-size: 13px;
-    }
+    :root { --bg:#f3f6fb; --surface:#ffffff; --surface-soft:#f8fbff; --text:#16324a; --muted:#6b7f92; --line:#d8e2ec; --primary:#245b8f; --primary-2:#3c78b5; --accent:#70ad47; --danger:#c84d4d; --radius-xl:24px; --radius-lg:18px; --radius-md:14px; --shadow:0 18px 50px rgba(27,52,78,.09);} *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text);background:radial-gradient(circle at top left,rgba(36,91,143,.10),transparent 25%),radial-gradient(circle at top right,rgba(112,173,71,.08),transparent 20%),var(--bg)} .page{max-width:1220px;margin:0 auto;padding:28px 18px 56px}.hero{background:linear-gradient(135deg,#244c73 0%,#355f8d 100%);color:#fff;border-radius:28px;padding:28px 28px 26px;box-shadow:var(--shadow);margin-bottom:22px}.hero h1{margin:0 0 10px;font-size:clamp(28px,4vw,40px);line-height:1.05}.hero p{margin:0;max-width:760px;color:rgba(255,255,255,.9);line-height:1.6;font-size:15px}.layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr);gap:20px;align-items:start}.stack{display:grid;gap:20px}.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-xl);box-shadow:var(--shadow);overflow:hidden}.panel-head{padding:20px 22px 0}.step{display:inline-flex;align-items:center;padding:7px 11px;border-radius:999px;background:#eaf2fb;color:var(--primary);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}.panel h2{margin:12px 0 6px;font-size:23px;line-height:1.15}.panel-subtitle{margin:0;color:var(--muted);font-size:14px;line-height:1.55}.panel-body{padding:18px 22px 22px}.upload-box{border:1.5px dashed #bdd0e3;border-radius:20px;padding:22px;background:linear-gradient(180deg,#fbfdff 0%,#f6f9fd 100%)} .field{display:grid;gap:8px;margin-bottom:14px}.field:last-child{margin-bottom:0}.field label{font-size:14px;font-weight:700} input[type="file"],input[type="text"],select{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:12px;background:#fff;font:inherit;color:var(--text);outline:none;transition:border-color .18s ease,box-shadow .18s ease} input[type="file"]:focus,input[type="text"]:focus,select:focus{border-color:var(--primary-2);box-shadow:0 0 0 4px rgba(60,120,181,.14)} .status{white-space:pre-line;border:1px solid var(--line);border-radius:14px;background:var(--surface-soft);color:var(--muted);padding:14px 15px;line-height:1.55;font-size:14px}.status.ok{background:#eef8e8;border-color:#cfe7bf;color:#326b12}.status.error{background:#fdf0f0;border-color:#efcaca;color:var(--danger)} .mapping-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.mapping-group{border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,#fff 0%,#fbfcff 100%);padding:16px}.mapping-group-title{margin-bottom:12px;font-size:15px;font-weight:800;line-height:1.35;color:var(--text)}.mapping-list{display:grid;gap:10px}.mapping-item{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid #e3ebf3;border-radius:12px;background:#fff}.mapping-item input[type="checkbox"]{margin-top:2px;accent-color:var(--primary-2)}.mapping-item label{cursor:pointer;line-height:1.45;color:var(--muted)}.mapping-item small{font-size:12px;color:var(--muted)} .card{border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,#fff 0%,#fbfcff 100%);padding:16px;margin-bottom:14px}.row{display:grid;grid-template-columns:1fr 1fr;gap:16px}.col-half{min-width:0}.pill-checkboxes{display:flex;flex-wrap:wrap;gap:10px}.pill-checkboxes label{display:inline-flex;align-items:center;gap:8px;padding:9px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;cursor:pointer;font-size:14px}.pill-checkboxes input{accent-color:var(--primary-2)} .primary-btn{border:none;border-radius:14px;padding:16px 18px;font:inherit;font-size:15px;font-weight:800;color:#fff;background:linear-gradient(135deg,#244c73 0%,#3c78b5 100%);box-shadow:0 14px 28px rgba(36,76,115,.22);cursor:pointer;transition:transform .18s ease,opacity .18s ease}.primary-btn:hover{transform:translateY(-1px)}.primary-btn:disabled{opacity:.65;cursor:wait;transform:none} .sidebar-card{background:linear-gradient(180deg,#fff 0%,#f8fbff 100%);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:18px}.sidebar-card h3{margin:0 0 8px;font-size:18px;line-height:1.2}.sidebar-card p{margin:0;color:var(--muted);line-height:1.55;font-size:14px}.sidebar-card ul{margin:12px 0 0;padding-left:18px;color:var(--muted);display:grid;gap:8px;font-size:14px;line-height:1.5} @media (max-width:980px){.layout{grid-template-columns:1fr}.mapping-grid,.row{grid-template-columns:1fr}}
+.age-toggle-wrap{margin-bottom:18px;padding:16px 18px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,#fbfdff 0%,#f6f9fd 100%)}
+.toggle-pill{display:flex;align-items:center;gap:12px;cursor:pointer;font-size:15px;font-weight:700}
+.toggle-pill input{position:absolute;opacity:0;width:0;height:0}
+.toggle-track{position:relative;width:46px;height:26px;border-radius:999px;background:#cdd9e6;transition:background .2s ease;flex-shrink:0}
+.toggle-thumb{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.15);transition:transform .2s ease}
+.toggle-pill input:checked + .toggle-track{background:var(--accent)}
+.toggle-pill input:checked + .toggle-track .toggle-thumb{transform:translateX(20px)}
+.toggle-hint{margin:10px 0 0 32px;color:var(--muted);font-size:13px;line-height:1.5;font-weight:400}
+.metric-group{border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,#fff 0%,#fbfcff 100%);overflow:hidden}
+.metric-group-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;user-select:none;gap:12px}
+.metric-group-head:hover{background:#f6f9fd}
+.metric-group-title{font-size:15px;font-weight:800;line-height:1.35}
+.metric-group-meta{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.metric-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:700}
+.metric-badge.found{background:#eef8e8;color:#326b12}
+.metric-badge.partial{background:#fff4e0;color:#8a5a00}
+.metric-badge.missing{background:#fdf0f0;color:var(--danger)}
+.metric-chevron{width:20px;height:20px;display:flex;align-items:center;justify-content:center;color:var(--muted);transition:transform .2s ease;font-size:18px}
+.metric-group.open .metric-chevron{transform:rotate(180deg)}
+.metric-group-body{display:none;padding:4px 16px 14px;border-top:1px solid var(--line)}
+.metric-group.open .metric-group-body{display:block}
+.metric-line{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #eef3f8}
+.metric-line:last-child{border-bottom:none}
+.metric-line-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);margin-top:7px;flex-shrink:0}
+.metric-line-dot.missing{background:var(--danger)}
+.metric-line-text{font-size:13px;line-height:1.5;color:var(--muted)}
+.metric-line-text strong{color:var(--text);font-weight:600}
+.extra-card-compact{border:1px solid var(--line);border-radius:14px;background:#fff;margin-bottom:10px;overflow:hidden}
+.extra-card-compact-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;gap:10px}
+.extra-card-compact-head:hover{background:#f6f9fd}
+.extra-card-compact-body{display:none;padding:12px 14px;border-top:1px solid var(--line)}
+.extra-card-compact.open .extra-card-compact-body{display:block}
+.extra-card-compact.open .metric-chevron{transform:rotate(180deg)}
   </style>
 </head>
 <body>
-  <div class="shell">
+  <div class="page">
     <section class="hero">
       <h1>Topline generator</h1>
-      <p>Загрузите Excel-базу, проверьте автоматически найденные вопросы и сформируйте topline в Excel без ручной сборки таблиц.</p>
+      <p>Загрузите Excel-базу, проверьте автоматически найденные вопросы и сформируйте красивый topline в Excel без ручной сборки таблиц.</p>
     </section>
-
-    <main class="layout">
-      <section class="card">
-        <div class="step">Шаг 1</div>
-        <h2>Загрузка базы</h2>
-        <p class="sub">Сервис читает файл, определяет стандартные блоки и готовит структуру topline.</p>
-        <div class="upload-zone">
-          <label class="file-label" for="baseFile">Файл базы (.xlsx)</label>
-          <input id="baseFile" type="file" accept=".xlsx,.xls" />
-          <div id="status" class="status">Загрузите файл, чтобы начать.</div>
-        </div>
-      </section>
-
-      <section id="mappingSection" class="card" style="display:none;">
-        <div class="step">Шаг 2</div>
-        <h2>Стандартные вопросы</h2>
-        <p class="sub">Проверьте, какие основные вопросы сервис определил автоматически.</p>
-        <div id="standardGroups" class="grid"></div>
-      </section>
-
-      <section id="extraSection" class="card" style="display:none;">
-        <div class="step">Шаг 3</div>
-        <h2>Дополнительные метрики</h2>
-        <p class="sub">Сгруппируйте похожие формулировки и задайте им единое имя для выгрузки.</p>
-        <div id="extraQuestions" class="grid"></div>
-      </section>
-
-      <section id="runSection" class="card" style="display:none;">
-        <div class="step">Шаг 4</div>
-        <h2>Расчёт</h2>
-        <p class="sub">Проверьте настройки листов и запустите формирование Excel.</p>
-        <div class="runbar">
-          <label class="switch"><input id="ageToggle" type="checkbox" checked /> Добавить лист по возрастам</label>
-          <button id="runBtn" type="button">Посчитать topline</button>
-        </div>
-      </section>
-    </main>
+    <div class="layout">
+      <main class="stack">
+        <section class="panel">
+          <div class="panel-head"><span class="step">Шаг 1</span><h2>Загрузка базы</h2><p class="panel-subtitle">Сервис читает файл, определяет стандартные блоки и готовит структуру topline.</p></div>
+          <div class="panel-body"><div class="upload-box"><div class="field"><label for="baseFile">Файл базы (.xlsx)</label><input id="baseFile" type="file" accept=".xlsx,.xls" /></div><div id="status" class="status">Загрузите файл базы, чтобы начать.</div></div></div>
+        </section>
+        <section id="mappingSection" class="panel" style="display:none;">
+          <div class="panel-head"><span class="step">Шаг 2</span><h2>Стандартные вопросы</h2><p class="panel-subtitle">Проверьте, какие основные вопросы сервис определил автоматически.</p></div>
+          <div class="panel-body"><div id="standardGroups" class="mapping-grid"></div></div>
+        </section>
+        <section id="extraSection" class="panel" style="display:none;">
+          <div class="panel-head"><span class="step">Шаг 3</span><h2>Дополнительные метрики</h2><p class="panel-subtitle">Если в базе есть другие закрытые вопросы, их можно вывести в topline отдельными метриками.</p></div>
+          <div class="panel-body"><div id="extraQuestions"></div></div>
+        </section>
+        <section id="runSection" class="panel" style="display:none;">
+          <div class="panel-head"><span class="step">Шаг 4</span><h2>Расчёт</h2><p class="panel-subtitle">После проверки вопросов сервис сформирует Excel-файл со всеми листами topline.</p></div>
+          <div class="panel-body">
+            <div class="age-toggle-wrap">
+              <label class="toggle-pill">
+                <input type="checkbox" id="ageToggle" />
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                <span class="toggle-label">Добавить лист с разбивкой по возрастам</span>
+              </label>
+              <p class="toggle-hint">18-24, 25-34, 35-44, 45+ — все метрики по каждому названию с проверкой значимости относительно тотал.</p>
+            </div>
+            <button id="runBtn" class="primary-btn">Посчитать topline</button>
+          </div>
+        </section>
+      </main>
+      <aside class="stack">
+        <section class="sidebar-card"><h3></h3><p></p><ul><li></li><li></li><li></li></ul></section>
+        <section class="sidebar-card"><h3></h3><p></p></section>
+      </aside>
+    </div>
   </div>
   <script src="./app.js"></script>
 </body>
