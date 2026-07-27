@@ -124,22 +124,29 @@ function looksLikeFitDishQuestion(h) {
 function looksLikeShareIntentQuestion(h) {
   const t = normalizeText(h);
   return (
+    !t.includes('в первую очередь') &&
+    !t.includes('с каким из этих названий') &&
+    !t.includes('какое из этих названий') &&
     (
+      t.includes('насколько вероятно') ||
+      t.includes('оцените по шкале') ||
       t.includes('для каждого названия') ||
-      t.includes('оцените') ||
-      t.includes('насколько вероятно')
+      t.includes('представьте, что вы увидели')
     ) &&
     (
       t.includes('расскажете') ||
       t.includes('рассказали бы') ||
       t.includes('рассказать') ||
       t.includes('поделитесь') ||
-      t.includes('поделиться')
+      t.includes('поделиться') ||
+      t.includes('рассказал(а) бы') ||
+      t.includes('рассказал бы')
     ) &&
     (
       t.includes('соцсет') ||
       t.includes('социальных сет') ||
-      t.includes('друзьям')
+      t.includes('друзьям') ||
+      t.includes('друзьям или в соц')
     )
   );
 }
@@ -149,7 +156,8 @@ function looksLikeDirectShareQuestion(h) {
   return (
     (
       t.includes('с каким из этих названий') ||
-      t.includes('какое из этих названий')
+      t.includes('какое из этих названий') ||
+      t.includes('про какое из этих названий')
     ) &&
     (
       t.includes('рассказали') ||
@@ -171,40 +179,89 @@ function looksLikeBuyIntentQuestion(h) {
   if (t.includes('с каким из этих названий')) return false;
   if (t.includes('какое из этих названий')) return false;
   return (
-    (t.includes('насколько вероятно') || t.includes('оцените по шкале') || t.includes('для каждого названия')) &&
-    (t.includes('купите') || t.includes('куплю') || t.includes('купили бы') || t.includes('вы бы купили') || t.includes('хотели бы купить'))
+    (
+      t.includes('насколько вероятно') ||
+      t.includes('оцените по шкале') ||
+      t.includes('для каждого названия')
+    ) &&
+    (
+      t.includes('купите') ||
+      t.includes('куплю') ||
+      t.includes('купили бы') ||
+      t.includes('вы бы купили') ||
+      t.includes('хотели бы купить')
+    )
   );
 }
 
 function looksLikeAudiencePhrasesQuestion(h) {
   const t = normalizeText(h);
-  return t.includes('насколько вам подходят эти фразы') || t.includes('совсем не про меня') || t.includes('полностью про меня');
+  return (
+    t.includes('насколько вам подходят эти фразы') ||
+    t.includes('совсем не про меня') ||
+    t.includes('полностью про меня')
+  );
 }
 
 function looksLikeAudienceSocialActionsQuestion(h) {
   const t = normalizeText(h);
-  return t.includes('что из перечисленного вы делали за последний месяц') && t.includes('социальных сетях');
+  return (
+    t.includes('что из перечисленного вы делали за последний месяц') &&
+    t.includes('социальных сетях')
+  );
 }
 
 function looksLikeAudienceShareMemesQuestion(h) {
   const t = normalizeText(h);
-  return t.includes('как часто вы делитесь с друзьями мемами') || t.includes('видео, постами');
+  return (
+    t.includes('как часто вы делитесь с друзьями мемами') ||
+    t.includes('видео, постами')
+  );
 }
 
 function looksLikeEmotionQuestion(h) {
   const t = normalizeText(h);
-  return t.includes('какие эмоции') || t.includes('какую эмоцию') || t.includes('что вы чувствуете') || t.includes('эмоции вызывает');
+  return (
+    t.includes('какие эмоции вызывает') ||
+    t.includes('какие эмоции у вас вызывает') ||
+    t.includes('какую эмоцию вызывает') ||
+    t.includes('какую эмоцию у вас вызывает') ||
+    t.includes('что вы чувствуете') ||
+    t.includes('эмоции вызывает') ||
+    t.includes('какие чувства вызывает') ||
+    t.includes('какие ассоциации вызывает')
+  );
 }
 
 function looksLikeViralityStatementQuestion(h) {
   const t = normalizeText(h);
-  const include = ['звучит необычно','звучит скучно','люди бы обсуждали такое название','звучит хайпово и трендово','из этого названия получился бы мем','получился бы мем','стал бы мемом','люди бы обсуждали'];
+  const include = [
+    'звучит необычно',
+    'звучит скучно',
+    'люди бы обсуждали такое название',
+    'звучит хайпово и трендово',
+    'из этого названия получился бы мем',
+    'получился бы мем',
+    'стал бы мемом',
+    'люди бы обсуждали'
+  ];
   return include.some(x => t.includes(normalizeText(x)));
 }
 
 function isViralityImageKey(key) {
   const t = normalizeText(key);
-  return t.includes('необыч') || t.includes('юмор') || t.includes('хайп') || t.includes('тренд') || t.includes('мем') || t.includes('обсуждал');
+  return (
+    t.includes('необыч') ||
+    t.includes('юмор') ||
+    t.includes('хайп') ||
+    t.includes('тренд') ||
+    t.includes('мем') ||
+    t.includes('обсуждал')
+  );
+}
+
+function isStandardImageKey(key) {
+  return !isViralityImageKey(key);
 }
 
 const TEEN_AGE_GROUPS = [
@@ -418,6 +475,57 @@ const IMAGE_STATEMENT_CONFIG = [
       'звучит старомодно'
     ]
   }
+  {
+  key: 'Название легко запомнить',
+  aliases: [
+    'название легко запомнить',
+    'это название легко запомнить',
+    'такое название легко запомнить'
+  ]
+},
+{
+  key: 'Понятно, какой вкус',
+  aliases: [
+    'понятно, какой вкус',
+    'по названию понятно, какой это вкус',
+    'понятно, какой это вкус',
+    'понятно, какой вкус у соуса',
+    'понятно, какой вкус у бургера'
+  ]
+},
+{
+  key: 'Понятно, что это за продукт',
+  aliases: [
+    'понятно, что это за продукт',
+    'понятно, что это за соус',
+    'понятно, что это за бургер',
+    'понятно, что это за блюдо'
+  ]
+},
+{
+  key: 'Хочется попробовать',
+  aliases: [
+    'хочется попробовать',
+    'хочется попробовать такой бургер',
+    'хочется попробовать такой соус',
+    'хочется попробовать и узнать, что это такое'
+  ]
+},
+{
+  key: 'Звучит аппетитно',
+  aliases: [
+    'звучит аппетитно',
+    'название звучит аппетитно'
+  ]
+},
+{
+  key: 'Легко произнести',
+  aliases: [
+    'название легко произнести',
+    'это название легко произнести',
+    'такое название легко произнести'
+  ]
+}
 ];
 function detectImageStatementKey(headerText) {
   const t = normalizeText(headerText);
@@ -612,13 +720,25 @@ function autoDetectMapping(header) {
     fitBrand: [],
     visitBK: [],
     buyDish: [],
-    shareIntent: [],
     image: [],
     directLike: [],
     directBuy: [],
     directShare: [],
-    virality: { shareIntent: [], emotions: [], statements: [] },
-    audience: { sex: null, age: null, freqNew: null, freqProd: null, freqBK: null, phrases: null, socialActions: null, shareMemes: null }
+    virality: {
+      shareIntent: [],
+      emotions: [],
+      statements: []
+    },
+    audience: {
+      sex: null,
+      age: null,
+      freqNew: null,
+      freqProd: null,
+      freqBK: null,
+      phrases: null,
+      socialActions: null,
+      shareMemes: null
+    }
   };
 
   header.forEach((h, idx) => {
@@ -626,50 +746,169 @@ function autoDetectMapping(header) {
     const t = normalizeText(text);
     if (!text) return;
 
-    if (text.includes('Оцените, пожалуйста, насколько вам нравится или не нравится каждое из этих названий') || t.includes('нравится или не нравится каждое из этих названий')) std.like.push(idx);
-    if (looksLikeFitDishQuestion(text)) std.fitDish.push(idx);
-    if (text.includes('А теперь оцените, насколько каждое из этих названий подходит или не подходит для бренда Бургер Кинг') || t.includes('подходит или не подходит для бренда бургер кинг')) std.fitBrand.push(idx);
-    if (text.includes('Скажите, насколько вероятно, что Вы посетите ресторан Бургер Кинг') || t.includes('насколько вероятно, что вы посетите ресторан бургер кинг')) std.visitBK.push(idx);
-    if ((text.includes('Для каждого названия укажите, насколько вероятно, что Вы купите') || t.includes('для каждого названия укажите, насколько вероятно, что вы купите') || looksLikeBuyIntentQuestion(text)) && !looksLikeDirectShareQuestion(text) && !t.includes('в первую очередь')) std.buyDish.push(idx);
-    if (looksLikeShareIntentQuestion(text) && !looksLikeDirectShareQuestion(text)) { std.shareIntent.push(idx); std.virality.shareIntent.push(idx); }
+    if (
+      text.includes('Оцените, пожалуйста, насколько вам нравится или не нравится каждое из этих названий') ||
+      t.includes('нравится или не нравится каждое из этих названий')
+    ) {
+      std.like.push(idx);
+    }
+
+    if (looksLikeFitDishQuestion(text)) {
+      std.fitDish.push(idx);
+    }
+
+    if (
+      text.includes('А теперь оцените, насколько каждое из этих названий подходит или не подходит для бренда Бургер Кинг') ||
+      t.includes('подходит или не подходит для бренда бургер кинг')
+    ) {
+      std.fitBrand.push(idx);
+    }
+
+    if (
+      text.includes('Скажите, насколько вероятно, что Вы посетите ресторан Бургер Кинг') ||
+      t.includes('насколько вероятно, что вы посетите ресторан бургер кинг')
+    ) {
+      std.visitBK.push(idx);
+    }
+
+    if (
+      (
+        text.includes('Для каждого названия укажите, насколько вероятно, что Вы купите') ||
+        t.includes('для каждого названия укажите, насколько вероятно, что вы купите') ||
+        looksLikeBuyIntentQuestion(text)
+      ) &&
+      !t.includes('в первую очередь')
+    ) {
+      std.buyDish.push(idx);
+    }
 
     const imageKey = detectImageStatementKey(text);
-    if (imageKey) std.image.push({ key: imageKey, idx });
-    if (looksLikeEmotionQuestion(text)) std.virality.emotions.push(idx);
-    if (looksLikeViralityStatementQuestion(text)) std.virality.statements.push(idx);
+    if (imageKey) {
+      std.image.push({ key: imageKey, idx });
+    }
 
-    if (t.includes('какое из перечисленных ниже названий') || t.includes('какое из этих названий')) std.directLike.push(idx);
-    if (t.includes('с каким из этих названий вы бы купили') || t.includes('с каким из этих названий вы купили бы') || (t.includes('с каким из этих названий') && t.includes('купили') && t.includes('в первую очередь')) || t.includes('бургер с каким из этих названий вы купили бы в первую очередь')) std.directBuy.push(idx);
-    if (looksLikeDirectShareQuestion(text)) std.directShare.push(idx);
+    if (looksLikeShareIntentQuestion(text)) {
+      std.virality.shareIntent.push(idx);
+    }
 
-    if (text.includes('Укажите Ваш пол')) std.audience.sex = idx;
-    if (text.includes('Укажите Ваш возраст')) std.audience.age = idx;
-    if (text.includes('Как часто Вы берете новинки') || text.includes('Как часто вы берете новинки') || t.includes('когда в фастфуде появляются новинки')) std.audience.freqNew = idx;
-    if ((text.includes('Как часто вы покупаете') || text.includes('Как часто Вы покупаете')) && std.audience.freqProd == null) std.audience.freqProd = idx;
-    if (text.includes('Как часто вы посещаете Бургер Кинг')) std.audience.freqBK = idx;
-    if (looksLikeAudiencePhrasesQuestion(text)) std.audience.phrases = idx;
-    if (looksLikeAudienceSocialActionsQuestion(text)) std.audience.socialActions = idx;
-    if (looksLikeAudienceShareMemesQuestion(text)) std.audience.shareMemes = idx;
+    if (looksLikeEmotionQuestion(text)) {
+      std.virality.emotions.push(idx);
+    }
+
+    if (looksLikeViralityStatementQuestion(text)) {
+      std.virality.statements.push(idx);
+    }
+
+    if (
+      t.includes('какое из перечисленных ниже названий') ||
+      t.includes('какое из этих названий нравится больше всего')
+    ) {
+      std.directLike.push(idx);
+    }
+
+    if (
+      t.includes('с каким из этих названий вы бы купили') ||
+      t.includes('с каким из этих названий вы купили бы') ||
+      t.includes('бургер с каким из этих названий вы купили бы в первую очередь') ||
+      (
+        t.includes('с каким из этих названий') &&
+        t.includes('купили') &&
+        t.includes('в первую очередь')
+      )
+    ) {
+      std.directBuy.push(idx);
+    }
+
+    if (looksLikeDirectShareQuestion(text)) {
+      std.directShare.push(idx);
+    }
+
+    if (text.includes('Укажите Ваш пол')) {
+      std.audience.sex = idx;
+    }
+
+    if (text.includes('Укажите Ваш возраст')) {
+      std.audience.age = idx;
+    }
+
+    if (
+      text.includes('Как часто Вы берете новинки') ||
+      text.includes('Как часто вы берете новинки') ||
+      t.includes('когда в фастфуде появляются новинки')
+    ) {
+      std.audience.freqNew = idx;
+    }
+
+    if (
+      (text.includes('Как часто вы покупаете') || text.includes('Как часто Вы покупаете')) &&
+      std.audience.freqProd == null
+    ) {
+      std.audience.freqProd = idx;
+    }
+
+    if (text.includes('Как часто вы посещаете Бургер Кинг')) {
+      std.audience.freqBK = idx;
+    }
+
+    if (looksLikeAudiencePhrasesQuestion(text)) {
+      std.audience.phrases = idx;
+    }
+
+    if (looksLikeAudienceSocialActionsQuestion(text)) {
+      std.audience.socialActions = idx;
+    }
+
+    if (looksLikeAudienceShareMemesQuestion(text)) {
+      std.audience.shareMemes = idx;
+    }
   });
 
-  std.directShare = Array.from(new Set(std.directShare));
-  std.directBuy = Array.from(new Set(std.directBuy));
   std.directLike = Array.from(new Set(std.directLike));
+  std.directBuy = Array.from(new Set(std.directBuy));
+  std.directShare = Array.from(new Set(std.directShare));
   std.buyDish = Array.from(new Set(std.buyDish.filter(idx => !std.directBuy.includes(idx))));
+  std.virality.shareIntent = Array.from(new Set(std.virality.shareIntent));
+  std.virality.emotions = Array.from(new Set(std.virality.emotions));
+  std.virality.statements = Array.from(new Set(std.virality.statements));
 
   const used = new Set([
-    ...std.like, ...std.fitDish, ...std.fitBrand, ...std.visitBK, ...std.buyDish, ...std.shareIntent,
-    ...std.image.map(x => x.idx), ...std.directLike, ...std.directBuy, ...std.directShare,
-    ...std.virality.emotions, ...std.virality.statements, ...std.virality.shareIntent,
-    std.audience.sex, std.audience.age, std.audience.freqNew, std.audience.freqProd, std.audience.freqBK,
-    std.audience.phrases, std.audience.socialActions, std.audience.shareMemes
+    ...std.like,
+    ...std.fitDish,
+    ...std.fitBrand,
+    ...std.visitBK,
+    ...std.buyDish,
+    ...std.image.map(x => x.idx),
+    ...std.directLike,
+    ...std.directBuy,
+    ...std.directShare,
+    ...std.virality.shareIntent,
+    ...std.virality.emotions,
+    ...std.virality.statements,
+    std.audience.sex,
+    std.audience.age,
+    std.audience.freqNew,
+    std.audience.freqProd,
+    std.audience.freqBK,
+    std.audience.phrases,
+    std.audience.socialActions,
+    std.audience.shareMemes
   ].filter(v => v !== null && v !== undefined));
 
   const extraCandidates = header.map((h, idx) => {
     if (used.has(idx)) return null;
     if (!h) return null;
+
     const lower = normalizeText(h);
-    const looksClosed = lower.includes('насколько') || lower.includes('оцените') || lower.includes('выберите') || lower.includes('какое из перечисленных') || lower.includes('с каким из этих названий') || lower.includes('насколько вероятно') || lower.includes('какой из этих') || lower.includes('что из перечисленного');
+    const looksClosed =
+      lower.includes('насколько') ||
+      lower.includes('оцените') ||
+      lower.includes('выберите') ||
+      lower.includes('какое из перечисленных') ||
+      lower.includes('с каким из этих названий') ||
+      lower.includes('насколько вероятно') ||
+      lower.includes('какой из этих') ||
+      lower.includes('что из перечисленного');
+
     if (!looksClosed) return null;
     return { idx, header: h };
   }).filter(Boolean);
@@ -677,86 +916,190 @@ function autoDetectMapping(header) {
   return { std, extraCandidates };
 }
 function renderStandardMappingUI(mapping, header) {
+  const standardImageItems = (mapping.std.image || []).filter(item => isStandardImageKey(item.key));
+
   const groups = [
     { key: 'like', label: 'Нравится название', type: 'шкала 1–5, Top‑2', indexes: mapping.std.like },
     { key: 'fitDish', label: 'Подходит для блюда / продукта', type: 'шкала 1–5, Top‑2', indexes: mapping.std.fitDish },
     { key: 'fitBrand', label: 'Подходит для бренда', type: 'шкала 1–5, Top‑2', indexes: mapping.std.fitBrand },
     { key: 'visitBK', label: 'Намерение посетить БК', type: 'шкала 1–5, Top‑2', indexes: mapping.std.visitBK },
     { key: 'buyDish', label: 'Намерение купить', type: 'шкала 1–5, Top‑2', indexes: mapping.std.buyDish },
-    { key: 'shareIntent', label: 'Намерение рассказать / поделиться', type: 'шкала 1–5, Top‑2', indexes: mapping.std.shareIntent },
+    { key: 'imageStandard', label: 'Имиджевые высказывания', type: 'атрибуты / statements', indexes: standardImageItems.map(x => x.idx) },
     { key: 'directCompare', label: 'Прямое сравнение', type: 'single choice', indexes: [...mapping.std.directLike, ...mapping.std.directBuy, ...mapping.std.directShare] }
   ];
 
   standardGroupsEl.innerHTML = '';
+
   groups.forEach(group => {
-    const indexes = Array.from(new Set(group.indexes));
+    const indexes = Array.from(new Set(group.indexes || []));
     const found = indexes.length;
     const expected = group.key === 'directCompare' ? 3 : 1;
     const badgeClass = found === 0 ? 'missing' : (found >= expected ? 'found' : 'partial');
     const badgeText = found === 0 ? 'не найдено' : `${found} ${found === 1 ? 'колонка' : 'колонки'}`;
+
     const card = document.createElement('div');
     card.className = 'metric-group';
+
     const head = document.createElement('div');
     head.className = 'metric-group-head';
-    head.innerHTML = `<div class="metric-group-title">${group.label}<span style="font-weight:400;color:var(--muted);font-size:13px"> — ${group.type}</span></div><div class="metric-group-meta"><span class="metric-badge ${badgeClass}">${badgeText}</span><span class="metric-chevron">⌄</span></div>`;
-    const body = document.createElement('div'); body.className = 'metric-group-body';
+    head.innerHTML = `
+      <div class="metric-group-title">
+        ${group.label}
+        <span style="font-weight:400;color:var(--muted);font-size:13px"> — ${group.type}</span>
+      </div>
+      <div class="metric-group-meta">
+        <span class="metric-badge ${badgeClass}">${badgeText}</span>
+        <span class="metric-chevron">⌄</span>
+      </div>
+    `;
+
+    const body = document.createElement('div');
+    body.className = 'metric-group-body';
+
     if (found === 0) {
-      body.innerHTML = '<div class="metric-line"><span class="metric-line-dot missing"></span><span class="metric-line-text">Колонки не найдены по ключевым словам.</span></div>';
+      body.innerHTML = `
+        <div class="metric-line">
+          <span class="metric-line-dot missing"></span>
+          <span class="metric-line-text">Колонки не найдены по ключевым словам.</span>
+        </div>
+      `;
     } else {
       indexes.forEach(idx => {
         let stdKey = group.key;
+
         if (group.key === 'directCompare') {
           if (mapping.std.directLike.includes(idx)) stdKey = 'directLike';
           else if (mapping.std.directBuy.includes(idx)) stdKey = 'directBuy';
           else stdKey = 'directShare';
         }
+
+        if (group.key === 'imageStandard') {
+          stdKey = 'imageStandard';
+        }
+
         const id = `std-${group.key}-${idx}`;
         const line = document.createElement('div');
         line.className = 'metric-line';
-        line.innerHTML = `<span class="metric-line-dot"></span><input type="checkbox" id="${id}" data-std-key="${stdKey}" data-col-idx="${idx}" checked style="margin-top:4px;accent-color:var(--primary-2)"><label for="${id}" class="metric-line-text"><strong>${header[idx]}</strong></label>`;
+        line.innerHTML = `
+          <span class="metric-line-dot"></span>
+          <input
+            type="checkbox"
+            id="${id}"
+            data-std-key="${stdKey}"
+            data-col-idx="${idx}"
+            checked
+            style="margin-top:4px;accent-color:var(--primary-2)"
+          >
+          <label for="${id}" class="metric-line-text">
+            <strong>${header[idx]}</strong>
+          </label>
+        `;
         body.appendChild(line);
       });
     }
+
     head.addEventListener('click', () => card.classList.toggle('open'));
-    card.appendChild(head); card.appendChild(body); standardGroupsEl.appendChild(card);
+    card.appendChild(head);
+    card.appendChild(body);
+    standardGroupsEl.appendChild(card);
   });
 
   if (!viralityGroupsEl) return;
+
   viralityGroupsEl.innerHTML = '';
+
+  const viralityStatementItems = (mapping.std.image || []).filter(item => isViralityImageKey(item.key));
   const v = mapping.std.virality || { shareIntent: [], emotions: [], statements: [] };
-  const totalVir = (v.shareIntent?.length || 0) + (v.emotions?.length || 0) + (v.statements?.length || 0);
+
+  const shareIntentIdx = Array.from(new Set(v.shareIntent || []));
+  const emotionIdx = Array.from(new Set(v.emotions || []));
+  const statementIdx = Array.from(new Set([
+    ...(v.statements || []),
+    ...viralityStatementItems.map(x => x.idx)
+  ]));
+
+  const totalVir = shareIntentIdx.length + emotionIdx.length + statementIdx.length;
+
+  const sectionTitle = document.createElement('div');
+  sectionTitle.style.margin = '20px 0 8px';
+  sectionTitle.innerHTML = `
+    <div class="panel-head" style="padding:0">
+      <span class="step">Шаг 2A</span>
+      <h2 style="margin-top:10px">Виральность</h2>
+      <p class="panel-subtitle">Отдельный блок с вопросами про рассказ / шеринг, эмоции и виральные высказывания.</p>
+    </div>
+  `;
+  viralityGroupsEl.appendChild(sectionTitle);
+
   const card = document.createElement('div');
-  card.className = 'metric-group virality-block';
+  card.className = 'metric-group virality-block open';
+
   const head = document.createElement('div');
   head.className = 'metric-group-head';
-  head.innerHTML = `<div class="metric-group-title">Виральность<span style="font-weight:400;color:var(--muted);font-size:13px"> — отдельный блок</span></div><div class="metric-group-meta"><span class="metric-badge ${totalVir ? 'found' : 'missing'}">${totalVir ? 'найдено' : 'блок пустой'}</span><span class="metric-chevron">⌄</span></div>`;
+  head.innerHTML = `
+    <div class="metric-group-title">
+      Виральность
+      <span style="font-weight:400;color:var(--muted);font-size:13px"> — отдельный блок</span>
+    </div>
+    <div class="metric-group-meta">
+      <span class="metric-badge ${totalVir ? 'found' : 'missing'}">${totalVir ? 'найдено' : 'блок пустой'}</span>
+      <span class="metric-chevron">⌄</span>
+    </div>
+  `;
+
   const body = document.createElement('div');
   body.className = 'metric-group-body';
+  body.style.display = 'block';
+
   const subgroups = [
-    ['shareIntent','Намерение рассказать / поделиться', v.shareIntent || []],
-    ['emotions','Эмоции', v.emotions || []],
-    ['statements','Имиджевые высказывания, связанные с виральностью', v.statements || []]
+    ['shareIntent', 'Намерение рассказать / поделиться', shareIntentIdx],
+    ['emotions', 'Эмоции', emotionIdx],
+    ['statements', 'Имиджевые высказывания, связанные с виральностью', statementIdx]
   ];
-  subgroups.forEach(([key,label,indexes]) => {
-    const box = document.createElement('div'); box.className = 'metric-subgroup';
+
+  subgroups.forEach(([key, label, indexes]) => {
+    const box = document.createElement('div');
+    box.className = 'metric-subgroup';
     box.innerHTML = `<div class="metric-subgroup-title">${label}</div>`;
+
     if (!indexes.length) {
-      box.innerHTML += '<div class="metric-line"><span class="metric-line-dot missing"></span><span class="metric-line-text">Не найдено</span></div>';
+      box.innerHTML += `
+        <div class="metric-line">
+          <span class="metric-line-dot missing"></span>
+          <span class="metric-line-text">Не найдено</span>
+        </div>
+      `;
     } else {
-      Array.from(new Set(indexes)).forEach(idx => {
+      indexes.forEach(idx => {
         const id = `vir-${key}-${idx}`;
         const line = document.createElement('div');
         line.className = 'metric-line';
-        line.innerHTML = `<span class="metric-line-dot"></span><input type="checkbox" id="${id}" data-virality-key="${key}" data-col-idx="${idx}" checked style="margin-top:4px;accent-color:var(--primary-2)"><label for="${id}" class="metric-line-text"><strong>${header[idx]}</strong></label>`;
+        line.innerHTML = `
+          <span class="metric-line-dot"></span>
+          <input
+            type="checkbox"
+            id="${id}"
+            data-virality-key="${key}"
+            data-col-idx="${idx}"
+            checked
+            style="margin-top:4px;accent-color:var(--primary-2)"
+          >
+          <label for="${id}" class="metric-line-text">
+            <strong>${header[idx]}</strong>
+          </label>
+        `;
         box.appendChild(line);
       });
     }
+
     body.appendChild(box);
   });
-  head.addEventListener('click', () => card.classList.toggle('open'));
-  card.appendChild(head); card.appendChild(body); viralityGroupsEl.appendChild(card);
-}
 
+  head.addEventListener('click', () => card.classList.toggle('open'));
+  card.appendChild(head);
+  card.appendChild(body);
+  viralityGroupsEl.appendChild(card);
+}
 function renderExtraQuestionsUI(mapping) {
   extraQuestionsEl.innerHTML = '';
   const groups = groupExtraCandidates(mapping.extraCandidates || []);
@@ -818,17 +1161,39 @@ function renderExtraQuestionsUI(mapping) {
 
 function collectUserConfig(mapping) {
   const stdSelected = {
-    like: [], fitDish: [], fitBrand: [], visitBK: [], buyDish: [], shareIntent: [],
-    directLike: [], directBuy: [], directShare: [], image: mapping.std.image.slice(), audience: mapping.std.audience,
-    virality: { shareIntent: [], emotions: [], statements: [] }
+    like: [],
+    fitDish: [],
+    fitBrand: [],
+    visitBK: [],
+    buyDish: [],
+    image: [],
+    imageStandard: [],
+    directLike: [],
+    directBuy: [],
+    directShare: [],
+    audience: mapping.std.audience,
+    virality: {
+      shareIntent: [],
+      emotions: [],
+      statements: []
+    }
   };
 
   document.querySelectorAll('input[type="checkbox"][data-std-key]').forEach(cb => {
     if (!cb.checked) return;
     const key = cb.getAttribute('data-std-key');
     const idx = Number(cb.getAttribute('data-col-idx'));
+
+    if (key === 'imageStandard') {
+      const found = (mapping.std.image || []).find(x => x.idx === idx);
+      if (found) stdSelected.image.push(found);
+      stdSelected.imageStandard.push(idx);
+      return;
+    }
+
     stdSelected[key].push(idx);
   });
+
   document.querySelectorAll('input[type="checkbox"][data-virality-key]').forEach(cb => {
     if (!cb.checked) return;
     const key = cb.getAttribute('data-virality-key');
@@ -838,18 +1203,37 @@ function collectUserConfig(mapping) {
 
   const extra = [];
   const grouped = groupExtraCandidates(mapping.extraCandidates || []);
+
   grouped.forEach(group => {
     const selected = Array.from(extraQuestionsEl.querySelectorAll(`[data-extra-group="${group.key}"]:checked`));
     if (!selected.length) return;
+
     const titleInput = extraQuestionsEl.querySelector(`[data-extra-group-name="${group.key}"]`);
     const title = (titleInput?.value || '').trim();
     if (!title) throw new Error('У доп.метрики "' + group.title + '" не задано название.');
+
     const whereWrap = extraQuestionsEl.querySelector(`[data-extra-group-where="${group.key}"]`);
     const where = [];
-    if (whereWrap) whereWrap.querySelectorAll('input[type="checkbox"]').forEach(cb => { if (cb.checked) where.push(cb.value); });
+    if (whereWrap) {
+      whereWrap.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        if (cb.checked) where.push(cb.value);
+      });
+    }
+
     if (!where.length) throw new Error('У доп.метрики "' + title + '" не выбрано, куда выводить.');
-    selected.forEach(el => { extra.push({ idx: Number(el.getAttribute('data-extra-index')), header: '', title, type: 'scale5', where, groupKey: group.key }); });
+
+    selected.forEach(el => {
+      extra.push({
+        idx: Number(el.getAttribute('data-extra-index')),
+        header: '',
+        title,
+        type: 'scale5',
+        where,
+        groupKey: group.key
+      });
+    });
   });
+
   return { std: stdSelected, extra };
 }
 
@@ -1051,23 +1435,21 @@ function calcStandardBlocks(rows, config, concepts, header) {
     return { perConcept, none };
   }
 
-  return {
+   return {
     n,
     scales: {
       like: dist5(config.std.like),
       fitDish: dist5(config.std.fitDish),
       fitBrand: dist5(config.std.fitBrand),
       visitBK: dist5(config.std.visitBK),
-      buyDish: dist5(config.std.buyDish),
-      shareIntent: dist5(config.std.shareIntent)
+      buyDish: dist5(config.std.buyDish)
     },
     top2: {
       like: top2ByCols(config.std.like),
       fitDish: top2ByCols(config.std.fitDish),
       fitBrand: top2ByCols(config.std.fitBrand),
       visitBK: top2ByCols(config.std.visitBK),
-      buyDish: top2ByCols(config.std.buyDish),
-      shareIntent: top2ByCols(config.std.shareIntent)
+      buyDish: top2ByCols(config.std.buyDish)
     },
     image: imageBlock(),
     direct: {
@@ -1077,11 +1459,16 @@ function calcStandardBlocks(rows, config, concepts, header) {
     },
     virality: {
       shareIntent: dist5((config.std.virality && config.std.virality.shareIntent) || []),
-      emotions: ((config.std.virality && config.std.virality.emotions) || []).map(idx => ({ idx, header: header[idx] })),
-      statements: ((config.std.virality && config.std.virality.statements) || []).map(idx => ({ idx, header: header[idx] }))
+      emotions: ((config.std.virality && config.std.virality.emotions) || []).map(idx => ({
+        idx,
+        header: header[idx]
+      })),
+      statements: ((config.std.virality && config.std.virality.statements) || []).map(idx => ({
+        idx,
+        header: header[idx]
+      }))
     }
   };
-}
 
 function calcExtraBlocks(rows, config, concepts, header) {
   const result = [];
@@ -1220,7 +1607,7 @@ function calcSignificance(stdRes, concepts, n) {
     });
   }
 
-  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent'].forEach(k => {
+  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish'].forEach(k => {
     if (stdRes.top2[k]) signif.top2[k] = labelsFor(stdRes.top2[k]);
   });
 
