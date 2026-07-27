@@ -555,6 +555,7 @@ function autoDetectMapping(header) {
     visitBK: [],
     buyDish: [],
     shareIntent: [],
+    virality: [],
     image: [],
     directLike: [],
     directBuy: [],
@@ -594,7 +595,8 @@ function autoDetectMapping(header) {
 
     if (
       text.includes('Для каждого названия укажите, насколько вероятно, что Вы купите') ||
-      t.includes('для каждого названия укажите, насколько вероятно, что вы купите')
+      t.includes('для каждого названия укажите, насколько вероятно, что вы купите') ||
+      looksLikeBuyIntentQuestion(text)
     ) {
       std.buyDish.push(idx);
     }
@@ -627,6 +629,10 @@ function autoDetectMapping(header) {
       std.directShare.push(idx);
     }
 
+    if (looksLikeViralityEmotionQuestion(text) || looksLikeViralityStatementQuestion(text) || looksLikeShareIntentQuestion(text) || looksLikeDirectShareQuestion(text)) {
+      std.virality.push(idx);
+    }
+
     if (text.includes('Укажите Ваш пол')) std.audience.sex = idx;
     if (text.includes('Укажите Ваш возраст')) std.audience.age = idx;
     if (text.includes('Как часто Вы берете новинки') || text.includes('Как часто вы берете новинки')) std.audience.freqNew = idx;
@@ -641,6 +647,7 @@ function autoDetectMapping(header) {
     ...std.visitBK,
     ...std.buyDish,
     ...std.shareIntent,
+    ...std.virality,
     ...std.image.map(x => x.idx),
     ...std.directLike,
     ...std.directBuy,
@@ -681,7 +688,7 @@ function renderStandardMappingUI(mapping, header) {
     { key: 'visitBK', label: 'Намерение посетить БК', type: 'шкала 1–5, Top‑2', indexes: mapping.std.visitBK },
     { key: 'buyDish', label: 'Намерение купить', type: 'шкала 1–5, Top‑2', indexes: mapping.std.buyDish },
     { key: 'shareIntent', label: 'Намерение рассказать / поделиться', type: 'шкала 1–5, Top‑2', indexes: mapping.std.shareIntent },
-    { key: 'virality', label: 'Виральность', type: 'mixed', indexes: mapping.std.virality },
+    { key: 'virality', label: 'Виральность', type: 'mixed', indexes: mapping.std.virality || [] },
     { key: 'directCompare', label: 'Прямое сравнение', type: 'single choice', indexes: [...mapping.std.directLike, ...mapping.std.directBuy, ...mapping.std.directShare] }
   ];
 
@@ -1054,7 +1061,8 @@ function calcStandardBlocks(rows, config, concepts, header) {
       fitBrand: dist5(config.std.fitBrand),
       visitBK: dist5(config.std.visitBK),
       buyDish: dist5(config.std.buyDish),
-      shareIntent: dist5(config.std.shareIntent), virality: dist5(config.std.virality)
+      shareIntent: dist5(config.std.shareIntent),
+      virality: dist5(config.std.virality)
     },
     top2: {
       like: top2ByCols(config.std.like),
@@ -1062,7 +1070,8 @@ function calcStandardBlocks(rows, config, concepts, header) {
       fitBrand: top2ByCols(config.std.fitBrand),
       visitBK: top2ByCols(config.std.visitBK),
       buyDish: top2ByCols(config.std.buyDish),
-      shareIntent: top2ByCols(config.std.shareIntent), virality: top2ByCols(config.std.virality)
+      shareIntent: top2ByCols(config.std.shareIntent),
+      virality: top2ByCols(config.std.virality)
     },
     image: imageBlock(),
     direct: {
@@ -1523,7 +1532,7 @@ function makeFullSheetStyled(stdRes, concepts, extraResults = []) {
   mergeRange(ws, row, 0, row, lastCol);
   row++;
 
-  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent', 'virality'].forEach(key => {
+  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent'].forEach(key => {
     if (!hasMetric(stdRes, key)) return;
     setCell(ws, row, 0, blockTitleForKey(key), STYLES.blockTitle);
     mergeRange(ws, row, 0, row, lastCol);
@@ -1712,7 +1721,7 @@ function calcAgeBreakdown(rows, config, concepts, header) {
 function calcAgeSignificance(ageData, totalStdRes, concepts, totalExtraRes = []) {
   const alphaZ = 1.96;
   const out = { main: {}, image: {}, extra: {} };
-  const keys = ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent', 'virality'];
+  const keys = ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent'];
   keys.forEach(key => {
     out.main[key] = AGE_GROUPS.map((_, gi) => {
       const groupVals = ageData.groups[gi].stdRes.top2[key] || [];
@@ -1750,13 +1759,13 @@ function calcAgeSignificance(ageData, totalStdRes, concepts, totalExtraRes = [])
 
 function makeAgeSheetStyled(ageData, ageSignif, totalStdRes, totalExtraRes, concepts) {
   const ws = {};
-  const subCols = ['Total', '18-24', '25-34', '35-44', '45+'];
+  const subCols = ['Total', ...(ageData.groups || []).map(g => g.label)];
   const width = subCols.length + 1;
   const lastCol = concepts.length * width;
   ws['!cols'] = [{ wch: 30 }, ...Array.from({ length: concepts.length }, (_, i) => ([{ wch: 9 },{ wch: 9 },{ wch: 9 },{ wch: 9 },{ wch: 9 },{ wch: 3 }][i%6]))];
   // rebuild cols correctly
   ws['!cols'] = [{ wch: 30 }];
-  for (let i = 0; i < concepts.length; i++) ws['!cols'].push({ wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 2 });
+  for (let i = 0; i < concepts.length; i++) { for (let j = 0; j < subCols.length; j++) ws['!cols'].push({ wch: 8 }); ws['!cols'].push({ wch: 2 }); }
   let row = 0;
   setCell(ws, row, 0, 'ВОЗРАСТ', STYLES.title);
   mergeRange(ws, row, 0, row, lastCol);
