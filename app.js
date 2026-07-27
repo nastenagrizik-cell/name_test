@@ -8,6 +8,10 @@ const standardGroupsEl = document.getElementById('standardGroups');
 const extraQuestionsEl = document.getElementById('extraQuestions');
 const runBtn = document.getElementById('runBtn');
 const ageToggle = document.getElementById('ageToggle');
+const noveltyToggle = document.getElementById('noveltyToggle');
+const socialToggle = document.getElementById('socialToggle');
+const viralityGroupsEl = document.getElementById('viralityGroups');
+const ageToggleHint = document.getElementById('ageToggleHint');
 
 let baseFile;
 let parsed = null;
@@ -159,6 +163,60 @@ function looksLikeDirectShareQuestion(h) {
       t.includes('сначала')
     )
   );
+}
+
+function looksLikeBuyIntentQuestion(h) {
+  const t = normalizeText(h);
+  if (t.includes('в первую очередь')) return false;
+  if (t.includes('с каким из этих названий')) return false;
+  if (t.includes('какое из этих названий')) return false;
+  return (
+    (t.includes('насколько вероятно') || t.includes('оцените по шкале') || t.includes('для каждого названия')) &&
+    (t.includes('купите') || t.includes('куплю') || t.includes('купили бы') || t.includes('вы бы купили') || t.includes('хотели бы купить'))
+  );
+}
+
+function looksLikeAudiencePhrasesQuestion(h) {
+  const t = normalizeText(h);
+  return t.includes('насколько вам подходят эти фразы') || t.includes('совсем не про меня') || t.includes('полностью про меня');
+}
+
+function looksLikeAudienceSocialActionsQuestion(h) {
+  const t = normalizeText(h);
+  return t.includes('что из перечисленного вы делали за последний месяц') && t.includes('социальных сетях');
+}
+
+function looksLikeAudienceShareMemesQuestion(h) {
+  const t = normalizeText(h);
+  return t.includes('как часто вы делитесь с друзьями мемами') || t.includes('видео, постами');
+}
+
+function looksLikeEmotionQuestion(h) {
+  const t = normalizeText(h);
+  return t.includes('какие эмоции') || t.includes('какую эмоцию') || t.includes('что вы чувствуете') || t.includes('эмоции вызывает');
+}
+
+function looksLikeViralityStatementQuestion(h) {
+  const t = normalizeText(h);
+  const include = ['звучит необычно','звучит скучно','люди бы обсуждали такое название','звучит хайпово и трендово','из этого названия получился бы мем','получился бы мем','стал бы мемом','люди бы обсуждали'];
+  return include.some(x => t.includes(normalizeText(x)));
+}
+
+function isViralityImageKey(key) {
+  const t = normalizeText(key);
+  return t.includes('необыч') || t.includes('юмор') || t.includes('хайп') || t.includes('тренд') || t.includes('мем') || t.includes('обсуждал');
+}
+
+const TEEN_AGE_GROUPS = [
+  { key: '14-16', label: '14-16', min: 14, max: 16 },
+  { key: '17-19', label: '17-19', min: 17, max: 19 }
+];
+
+function detectAudienceTypeByRows(rows, ageIdx) {
+  if (ageIdx == null || ageIdx < 0) return 'adult';
+  const ages = rows.map(r => parseAgeValue(getCell(r, ageIdx))).filter(v => v != null);
+  if (!ages.length) return 'adult';
+  return Math.max(...ages) <= 19 ? 'teen' : 'adult';
 }
 
 const IMAGE_STATEMENT_CONFIG = [
@@ -493,7 +551,7 @@ if (typeof XLSX !== 'object') {
       XLSX.utils.book_append_sheet(outWb, makeSignifSheetStyled(stdResults, concepts, signifRes, extraResults), 'значимости');
       XLSX.utils.book_append_sheet(outWb, makeAudienceSheetStyled(audienceRes), 'Аудитория');
 
-      if (ageToggleEl && ageToggleEl.checked) {
+      if (ageToggle && ageToggle.checked) {
         if (userConfig.std.audience.age == null || userConfig.std.audience.age < 0) {
           status('Внимание: столбец возраста не найден в базе — лист по возрастам не добавлен.', false, true);
         } else {
@@ -547,138 +605,6 @@ function splitHeaderRows(data) {
   return { header, rows };
 }
 
-const ageToggleEl = document.getElementById('ageToggle');
-const noveltyToggleEl = document.getElementById('noveltyToggle');
-const socialToggleEl = document.getElementById('socialToggle');
-const TEEN_AGEGROUPS = [
-  { key: '14-16', label: '14-16', min: 14, max: 16 },
-  { key: '17-19', label: '17-19', min: 17, max: 19 }
-];
-
-function looksLikeBuyIntentQuestion(h) {
-  const t = normalizeText(h);
-  return (
-    t.includes('хотели бы купить') ||
-    t.includes('хотелось бы купить') ||
-    t.includes('намерение купить') ||
-    t.includes('вы бы купили') ||
-    t.includes('купили бы') ||
-    t.includes('захотели бы купить') ||
-    t.includes('хотели бы заказать') ||
-    t.includes('заказали бы') ||
-    t.includes('взяли бы')
-  );
-}
-
-function looksLikeViralityEmotionQuestion(h) {
-  const t = normalizeText(h);
-  return t.includes('эмоци') || t.includes('ассоциац') || t.includes('чувства вызывает');
-}
-
-function looksLikeViralityStatementQuestion(h) {
-  const t = normalizeText(h);
-  const include = [
-    'звучит необычно', 'звучит скучно', 'люди бы обсуждали', 'звучит хайпово',
-    'звучит трендово', 'получился бы мем', 'стал бы мемом', 'обсуждали такое название', 'вираль'
-  ];
-  const exclude = [
-    'вкусный соус', 'название легко запомнить', 'понятно, какой это вкус',
-    'пикантный', 'острый соус', 'хочется попробовать', 'узнать, что это такое'
-  ];
-  return include.some(x => t.includes(normalizeText(x))) && !exclude.some(x => t.includes(normalizeText(x)));
-}
-
-function detectAudienceType(rows, ageColIdx) {
-  if (ageColIdx == null || ageColIdx < 0) return 'adult';
-  const ages = rows.map(r => parseAgeValue(getCell(r, ageColIdx))).filter(v => v != null);
-  if (!ages.length) return 'adult';
-  return Math.max(...ages) <= 19 ? 'teen' : 'adult';
-}
-
-function findHeaderIndex(header, tester) {
-  for (let i = 0; i < header.length; i++) {
-    if (tester(String(header[i] || ''))) return i;
-  }
-  return null;
-}
-
-function calcNoveltySegments(rows, config) {
-  const idx = config && config.std && config.std.audience ? config.std.audience.freqNew : null;
-  if (idx == null || idx < 0) return null;
-  const innovators = [];
-  const traditional = [];
-  rows.forEach(r => {
-    const t = normalizeText(String(getCell(r, idx) || ''));
-    if (t.includes('в каждом заказе') || t.includes('в большей части заказ')) innovators.push(r);
-    else traditional.push(r);
-  });
-  if (!innovators.length && !traditional.length) return null;
-  return {
-    title: 'Новиночники vs традиционалисты',
-    groups: [
-      { key: 'innovators', label: 'Новиночники', rows: innovators },
-      { key: 'traditional', label: 'Традиционалисты', rows: traditional }
-    ]
-  };
-}
-
-function calcSocialSegments(rows, header) {
-  const phraseIdxs = header.map((h, i) => ({ h: String(h || ''), i })).filter(x => {
-    const t = normalizeText(x.h);
-    return t.includes('обычно в курсе новых блюд и трендов в фастфуде') ||
-           t.includes('друзья часто спрашивают меня, что нового стоит попробовать в фастфуде');
-  }).map(x => x.i);
-  const monthIdx = findHeaderIndex(header, h => normalizeText(h).includes('что из этого вы делали за последний месяц'));
-  const shareIdx = findHeaderIndex(header, h => normalizeText(h).includes('как часто вы делитесь с друзьями мемами, видео, постами'));
-  if (!phraseIdxs.length && monthIdx == null && shareIdx == null) return null;
-  const active = [];
-  const other = [];
-  rows.forEach(r => {
-    const phraseOk = phraseIdxs.some(i => {
-      const v = parseScaleValue(getCell(r, i));
-      return v === 4 || v === 5;
-    });
-    const monthText = normalizeText(String(monthIdx == null ? '' : getCell(r, monthIdx) || ''));
-    const monthOk = monthIdx == null ? false : !monthText.includes('ничего из перечисленного');
-    const shareText = normalizeText(String(shareIdx == null ? '' : getCell(r, shareIdx) || ''));
-    const shareOk = shareText.includes('несколько раз в день') || shareText.includes('раз в день') || shareText.includes('несколько раз в неделю');
-    if (phraseOk && monthOk && shareOk) active.push(r); else other.push(r);
-  });
-  return {
-    title: 'Активны в соцсетях и интересуются новинками',
-    groups: [
-      { key: 'active', label: 'Активные / интересуются новинками', rows: active },
-      { key: 'other', label: 'Остальные', rows: other }
-    ]
-  };
-}
-
-function makeSegmentSheetStyled(segmentData, config, concepts, header) {
-  if (!segmentData || !segmentData.groups || !segmentData.groups.length) return null;
-  const ws = {};
-  const lastCol = segmentData.groups.length;
-  ws['!cols'] = [{ wch: 42 }, ...Array.from({ length: lastCol }, () => ({ wch: 18 }))];
-  let row = 0;
-  setCell(ws, row, 0, segmentData.title, STYLES.title);
-  mergeRange(ws, row, 0, row, lastCol);
-  row++;
-  setCell(ws, row, 0, 'Метрика', STYLES.headerCenter);
-  segmentData.groups.forEach((g, i) => setCell(ws, row, i + 1, `${g.label} (n=${g.rows.length})`, STYLES.headerCenter));
-  row++;
-  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent', 'virality'].forEach(key => {
-    setCell(ws, row, 0, blockTitleForKey(key), STYLES.label);
-    segmentData.groups.forEach((g, i) => {
-      const s = calcStandardBlocks(g.rows, config, concepts, header);
-      const vals = (s && s.top2 && s.top2[key]) ? s.top2[key] : [];
-      const v = vals.length ? Math.max(...vals) : 0;
-      setPercent(ws, row, i + 1, v, STYLES.percent);
-    });
-    row++;
-  });
-  applySheetRangeRef(ws, row, lastCol);
-  return ws;
-}
-
 function autoDetectMapping(header) {
   const std = {
     like: [],
@@ -687,12 +613,12 @@ function autoDetectMapping(header) {
     visitBK: [],
     buyDish: [],
     shareIntent: [],
-    virality: [],
     image: [],
     directLike: [],
     directBuy: [],
     directShare: [],
-    audience: { sex: null, age: null, freqNew: null, freqProd: null, freqBK: null }
+    virality: { shareIntent: [], emotions: [], statements: [] },
+    audience: { sex: null, age: null, freqNew: null, freqProd: null, freqBK: null, phrases: null, socialActions: null, shareMemes: null }
   };
 
   header.forEach((h, idx) => {
@@ -700,112 +626,50 @@ function autoDetectMapping(header) {
     const t = normalizeText(text);
     if (!text) return;
 
-    if (
-      text.includes('Оцените, пожалуйста, насколько вам нравится или не нравится каждое из этих названий') ||
-      t.includes('нравится или не нравится каждое из этих названий')
-    ) {
-      std.like.push(idx);
-    }
-
-    if (looksLikeFitDishQuestion(text)) {
-      std.fitDish.push(idx);
-    }
-
-    if (
-      text.includes('А теперь оцените, насколько каждое из этих названий подходит или не подходит для бренда Бургер Кинг') ||
-      t.includes('подходит или не подходит для бренда бургер кинг')
-    ) {
-      std.fitBrand.push(idx);
-    }
-
-    if (
-      text.includes('Скажите, насколько вероятно, что Вы посетите ресторан Бургер Кинг') ||
-      t.includes('насколько вероятно, что вы посетите ресторан бургер кинг')
-    ) {
-      std.visitBK.push(idx);
-    }
-
-    if (
-      text.includes('Для каждого названия укажите, насколько вероятно, что Вы купите') ||
-      t.includes('для каждого названия укажите, насколько вероятно, что вы купите') ||
-      looksLikeBuyIntentQuestion(text)
-    ) {
-      std.buyDish.push(idx);
-    }
-
-    if (looksLikeShareIntentQuestion(text)) {
-      std.shareIntent.push(idx);
-    }
+    if (text.includes('Оцените, пожалуйста, насколько вам нравится или не нравится каждое из этих названий') || t.includes('нравится или не нравится каждое из этих названий')) std.like.push(idx);
+    if (looksLikeFitDishQuestion(text)) std.fitDish.push(idx);
+    if (text.includes('А теперь оцените, насколько каждое из этих названий подходит или не подходит для бренда Бургер Кинг') || t.includes('подходит или не подходит для бренда бургер кинг')) std.fitBrand.push(idx);
+    if (text.includes('Скажите, насколько вероятно, что Вы посетите ресторан Бургер Кинг') || t.includes('насколько вероятно, что вы посетите ресторан бургер кинг')) std.visitBK.push(idx);
+    if ((text.includes('Для каждого названия укажите, насколько вероятно, что Вы купите') || t.includes('для каждого названия укажите, насколько вероятно, что вы купите') || looksLikeBuyIntentQuestion(text)) && !looksLikeDirectShareQuestion(text) && !t.includes('в первую очередь')) std.buyDish.push(idx);
+    if (looksLikeShareIntentQuestion(text) && !looksLikeDirectShareQuestion(text)) { std.shareIntent.push(idx); std.virality.shareIntent.push(idx); }
 
     const imageKey = detectImageStatementKey(text);
-    if (imageKey) {
-      std.image.push({ key: imageKey, idx });
-    }
+    if (imageKey) std.image.push({ key: imageKey, idx });
+    if (looksLikeEmotionQuestion(text)) std.virality.emotions.push(idx);
+    if (looksLikeViralityStatementQuestion(text)) std.virality.statements.push(idx);
 
-    if (
-      t.includes('какое из перечисленных ниже названий') ||
-      t.includes('какое из этих названий')
-    ) {
-      std.directLike.push(idx);
-    }
-
-    if (
-      t.includes('с каким из этих названий вы бы купили') ||
-      t.includes('с каким из этих названий вы купили бы') ||
-      (t.includes('с каким из этих названий') && t.includes('купили') && t.includes('в первую очередь'))
-    ) {
-      std.directBuy.push(idx);
-    }
-
-    if (looksLikeDirectShareQuestion(text)) {
-      std.directShare.push(idx);
-    }
-
-    if (looksLikeViralityEmotionQuestion(text) || looksLikeViralityStatementQuestion(text) || looksLikeShareIntentQuestion(text) || looksLikeDirectShareQuestion(text)) {
-      std.virality.push(idx);
-    }
+    if (t.includes('какое из перечисленных ниже названий') || t.includes('какое из этих названий')) std.directLike.push(idx);
+    if (t.includes('с каким из этих названий вы бы купили') || t.includes('с каким из этих названий вы купили бы') || (t.includes('с каким из этих названий') && t.includes('купили') && t.includes('в первую очередь')) || t.includes('бургер с каким из этих названий вы купили бы в первую очередь')) std.directBuy.push(idx);
+    if (looksLikeDirectShareQuestion(text)) std.directShare.push(idx);
 
     if (text.includes('Укажите Ваш пол')) std.audience.sex = idx;
     if (text.includes('Укажите Ваш возраст')) std.audience.age = idx;
-    if (text.includes('Как часто Вы берете новинки') || text.includes('Как часто вы берете новинки')) std.audience.freqNew = idx;
+    if (text.includes('Как часто Вы берете новинки') || text.includes('Как часто вы берете новинки') || t.includes('когда в фастфуде появляются новинки')) std.audience.freqNew = idx;
     if ((text.includes('Как часто вы покупаете') || text.includes('Как часто Вы покупаете')) && std.audience.freqProd == null) std.audience.freqProd = idx;
     if (text.includes('Как часто вы посещаете Бургер Кинг')) std.audience.freqBK = idx;
+    if (looksLikeAudiencePhrasesQuestion(text)) std.audience.phrases = idx;
+    if (looksLikeAudienceSocialActionsQuestion(text)) std.audience.socialActions = idx;
+    if (looksLikeAudienceShareMemesQuestion(text)) std.audience.shareMemes = idx;
   });
 
+  std.directShare = Array.from(new Set(std.directShare));
+  std.directBuy = Array.from(new Set(std.directBuy));
+  std.directLike = Array.from(new Set(std.directLike));
+  std.buyDish = Array.from(new Set(std.buyDish.filter(idx => !std.directBuy.includes(idx))));
+
   const used = new Set([
-    ...std.like,
-    ...std.fitDish,
-    ...std.fitBrand,
-    ...std.visitBK,
-    ...std.buyDish,
-    ...std.shareIntent,
-    ...std.virality,
-    ...std.image.map(x => x.idx),
-    ...std.directLike,
-    ...std.directBuy,
-    ...std.directShare,
-    std.audience.sex,
-    std.audience.age,
-    std.audience.freqNew,
-    std.audience.freqProd,
-    std.audience.freqBK
+    ...std.like, ...std.fitDish, ...std.fitBrand, ...std.visitBK, ...std.buyDish, ...std.shareIntent,
+    ...std.image.map(x => x.idx), ...std.directLike, ...std.directBuy, ...std.directShare,
+    ...std.virality.emotions, ...std.virality.statements, ...std.virality.shareIntent,
+    std.audience.sex, std.audience.age, std.audience.freqNew, std.audience.freqProd, std.audience.freqBK,
+    std.audience.phrases, std.audience.socialActions, std.audience.shareMemes
   ].filter(v => v !== null && v !== undefined));
 
   const extraCandidates = header.map((h, idx) => {
     if (used.has(idx)) return null;
     if (!h) return null;
-
     const lower = normalizeText(h);
-    const looksClosed =
-      lower.includes('насколько') ||
-      lower.includes('оцените') ||
-      lower.includes('выберите') ||
-      lower.includes('какое из перечисленных') ||
-      lower.includes('с каким из этих названий') ||
-      lower.includes('насколько вероятно') ||
-      lower.includes('какой из этих') ||
-      lower.includes('что из перечисленного');
-
+    const looksClosed = lower.includes('насколько') || lower.includes('оцените') || lower.includes('выберите') || lower.includes('какое из перечисленных') || lower.includes('с каким из этих названий') || lower.includes('насколько вероятно') || lower.includes('какой из этих') || lower.includes('что из перечисленного');
     if (!looksClosed) return null;
     return { idx, header: h };
   }).filter(Boolean);
@@ -820,38 +684,26 @@ function renderStandardMappingUI(mapping, header) {
     { key: 'visitBK', label: 'Намерение посетить БК', type: 'шкала 1–5, Top‑2', indexes: mapping.std.visitBK },
     { key: 'buyDish', label: 'Намерение купить', type: 'шкала 1–5, Top‑2', indexes: mapping.std.buyDish },
     { key: 'shareIntent', label: 'Намерение рассказать / поделиться', type: 'шкала 1–5, Top‑2', indexes: mapping.std.shareIntent },
-    { key: 'virality', label: 'Виральность', type: 'mixed', indexes: mapping.std.virality || [] },
     { key: 'directCompare', label: 'Прямое сравнение', type: 'single choice', indexes: [...mapping.std.directLike, ...mapping.std.directBuy, ...mapping.std.directShare] }
   ];
 
   standardGroupsEl.innerHTML = '';
-
   groups.forEach(group => {
-    const found = group.indexes.length;
+    const indexes = Array.from(new Set(group.indexes));
+    const found = indexes.length;
     const expected = group.key === 'directCompare' ? 3 : 1;
     const badgeClass = found === 0 ? 'missing' : (found >= expected ? 'found' : 'partial');
     const badgeText = found === 0 ? 'не найдено' : `${found} ${found === 1 ? 'колонка' : 'колонки'}`;
-
     const card = document.createElement('div');
     card.className = 'metric-group';
-
     const head = document.createElement('div');
     head.className = 'metric-group-head';
-    head.innerHTML = `
-      <div class="metric-group-title">${group.label}<span style="font-weight:400;color:var(--muted);font-size:13px"> — ${group.type}</span></div>
-      <div class="metric-group-meta">
-        <span class="metric-badge ${badgeClass}">${badgeText}</span>
-        <span class="metric-chevron">⌄</span>
-      </div>
-    `;
-
-    const body = document.createElement('div');
-    body.className = 'metric-group-body';
-
+    head.innerHTML = `<div class="metric-group-title">${group.label}<span style="font-weight:400;color:var(--muted);font-size:13px"> — ${group.type}</span></div><div class="metric-group-meta"><span class="metric-badge ${badgeClass}">${badgeText}</span><span class="metric-chevron">⌄</span></div>`;
+    const body = document.createElement('div'); body.className = 'metric-group-body';
     if (found === 0) {
-      body.innerHTML = '<div class="metric-line"><span class="metric-line-dot missing"></span><span class="metric-line-text">Колонки не найдены по ключевым словам. Проверьте базу или добавьте метрику вручную.</span></div>';
+      body.innerHTML = '<div class="metric-line"><span class="metric-line-dot missing"></span><span class="metric-line-text">Колонки не найдены по ключевым словам.</span></div>';
     } else {
-      group.indexes.forEach(idx => {
+      indexes.forEach(idx => {
         let stdKey = group.key;
         if (group.key === 'directCompare') {
           if (mapping.std.directLike.includes(idx)) stdKey = 'directLike';
@@ -861,23 +713,48 @@ function renderStandardMappingUI(mapping, header) {
         const id = `std-${group.key}-${idx}`;
         const line = document.createElement('div');
         line.className = 'metric-line';
-        line.innerHTML = `
-          <span class="metric-line-dot"></span>
-          <input type="checkbox" id="${id}" data-std-key="${stdKey}" data-col-idx="${idx}" checked style="margin-top:4px;accent-color:var(--primary-2)">
-          <label for="${id}" class="metric-line-text"><strong>${header[idx]}</strong></label>
-        `;
+        line.innerHTML = `<span class="metric-line-dot"></span><input type="checkbox" id="${id}" data-std-key="${stdKey}" data-col-idx="${idx}" checked style="margin-top:4px;accent-color:var(--primary-2)"><label for="${id}" class="metric-line-text"><strong>${header[idx]}</strong></label>`;
         body.appendChild(line);
       });
     }
-
-    head.addEventListener('click', () => {
-      card.classList.toggle('open');
-    });
-
-    card.appendChild(head);
-    card.appendChild(body);
-    standardGroupsEl.appendChild(card);
+    head.addEventListener('click', () => card.classList.toggle('open'));
+    card.appendChild(head); card.appendChild(body); standardGroupsEl.appendChild(card);
   });
+
+  if (!viralityGroupsEl) return;
+  viralityGroupsEl.innerHTML = '';
+  const v = mapping.std.virality || { shareIntent: [], emotions: [], statements: [] };
+  const totalVir = (v.shareIntent?.length || 0) + (v.emotions?.length || 0) + (v.statements?.length || 0);
+  const card = document.createElement('div');
+  card.className = 'metric-group virality-block';
+  const head = document.createElement('div');
+  head.className = 'metric-group-head';
+  head.innerHTML = `<div class="metric-group-title">Виральность<span style="font-weight:400;color:var(--muted);font-size:13px"> — отдельный блок</span></div><div class="metric-group-meta"><span class="metric-badge ${totalVir ? 'found' : 'missing'}">${totalVir ? 'найдено' : 'блок пустой'}</span><span class="metric-chevron">⌄</span></div>`;
+  const body = document.createElement('div');
+  body.className = 'metric-group-body';
+  const subgroups = [
+    ['shareIntent','Намерение рассказать / поделиться', v.shareIntent || []],
+    ['emotions','Эмоции', v.emotions || []],
+    ['statements','Имиджевые высказывания, связанные с виральностью', v.statements || []]
+  ];
+  subgroups.forEach(([key,label,indexes]) => {
+    const box = document.createElement('div'); box.className = 'metric-subgroup';
+    box.innerHTML = `<div class="metric-subgroup-title">${label}</div>`;
+    if (!indexes.length) {
+      box.innerHTML += '<div class="metric-line"><span class="metric-line-dot missing"></span><span class="metric-line-text">Не найдено</span></div>';
+    } else {
+      Array.from(new Set(indexes)).forEach(idx => {
+        const id = `vir-${key}-${idx}`;
+        const line = document.createElement('div');
+        line.className = 'metric-line';
+        line.innerHTML = `<span class="metric-line-dot"></span><input type="checkbox" id="${id}" data-virality-key="${key}" data-col-idx="${idx}" checked style="margin-top:4px;accent-color:var(--primary-2)"><label for="${id}" class="metric-line-text"><strong>${header[idx]}</strong></label>`;
+        box.appendChild(line);
+      });
+    }
+    body.appendChild(box);
+  });
+  head.addEventListener('click', () => card.classList.toggle('open'));
+  card.appendChild(head); card.appendChild(body); viralityGroupsEl.appendChild(card);
 }
 
 function renderExtraQuestionsUI(mapping) {
@@ -920,7 +797,7 @@ function renderExtraQuestionsUI(mapping) {
           <label><input type="checkbox" value="summary" checked> САММАРИ</label>
           <label><input type="checkbox" value="full" checked> полные таблицы</label>
           <label><input type="checkbox" value="signif" checked> значимости</label>
-          <label><input type="checkbox" value="age" checked> возраст</label>
+          <label><input type="checkbox" value="age" checked> возраст</label><label><input type="checkbox" value="audience"> аудитория</label>
         </div>
       </div>
       <div class="mapping-list">
@@ -942,7 +819,8 @@ function renderExtraQuestionsUI(mapping) {
 function collectUserConfig(mapping) {
   const stdSelected = {
     like: [], fitDish: [], fitBrand: [], visitBK: [], buyDish: [], shareIntent: [],
-    directLike: [], directBuy: [], directShare: [], image: mapping.std.image.slice(), audience: mapping.std.audience
+    directLike: [], directBuy: [], directShare: [], image: mapping.std.image.slice(), audience: mapping.std.audience,
+    virality: { shareIntent: [], emotions: [], statements: [] }
   };
 
   document.querySelectorAll('input[type="checkbox"][data-std-key]').forEach(cb => {
@@ -951,39 +829,27 @@ function collectUserConfig(mapping) {
     const idx = Number(cb.getAttribute('data-col-idx'));
     stdSelected[key].push(idx);
   });
+  document.querySelectorAll('input[type="checkbox"][data-virality-key]').forEach(cb => {
+    if (!cb.checked) return;
+    const key = cb.getAttribute('data-virality-key');
+    const idx = Number(cb.getAttribute('data-col-idx'));
+    stdSelected.virality[key].push(idx);
+  });
 
   const extra = [];
   const grouped = groupExtraCandidates(mapping.extraCandidates || []);
-
   grouped.forEach(group => {
     const selected = Array.from(extraQuestionsEl.querySelectorAll(`[data-extra-group="${group.key}"]:checked`));
     if (!selected.length) return;
-
     const titleInput = extraQuestionsEl.querySelector(`[data-extra-group-name="${group.key}"]`);
     const title = (titleInput?.value || '').trim();
     if (!title) throw new Error('У доп.метрики "' + group.title + '" не задано название.');
-
     const whereWrap = extraQuestionsEl.querySelector(`[data-extra-group-where="${group.key}"]`);
     const where = [];
-    if (whereWrap) {
-      whereWrap.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-        if (cb.checked) where.push(cb.value);
-      });
-    }
+    if (whereWrap) whereWrap.querySelectorAll('input[type="checkbox"]').forEach(cb => { if (cb.checked) where.push(cb.value); });
     if (!where.length) throw new Error('У доп.метрики "' + title + '" не выбрано, куда выводить.');
-
-    selected.forEach(el => {
-      extra.push({
-        idx: Number(el.getAttribute('data-extra-index')),
-        header: '',
-        title,
-        type: 'scale5',
-        where,
-        groupKey: group.key
-      });
-    });
+    selected.forEach(el => { extra.push({ idx: Number(el.getAttribute('data-extra-index')), header: '', title, type: 'scale5', where, groupKey: group.key }); });
   });
-
   return { std: stdSelected, extra };
 }
 
@@ -1193,8 +1059,7 @@ function calcStandardBlocks(rows, config, concepts, header) {
       fitBrand: dist5(config.std.fitBrand),
       visitBK: dist5(config.std.visitBK),
       buyDish: dist5(config.std.buyDish),
-      shareIntent: dist5(config.std.shareIntent),
-      virality: dist5(config.std.virality || [])
+      shareIntent: dist5(config.std.shareIntent)
     },
     top2: {
       like: top2ByCols(config.std.like),
@@ -1202,14 +1067,18 @@ function calcStandardBlocks(rows, config, concepts, header) {
       fitBrand: top2ByCols(config.std.fitBrand),
       visitBK: top2ByCols(config.std.visitBK),
       buyDish: top2ByCols(config.std.buyDish),
-      shareIntent: top2ByCols(config.std.shareIntent),
-      virality: top2ByCols(config.std.virality || [])
+      shareIntent: top2ByCols(config.std.shareIntent)
     },
     image: imageBlock(),
     direct: {
       likeMost: directSingle(config.std.directLike),
       buyFirst: directSingle(config.std.directBuy),
       shareFirst: directSingle(config.std.directShare)
+    },
+    virality: {
+      shareIntent: dist5((config.std.virality && config.std.virality.shareIntent) || []),
+      emotions: ((config.std.virality && config.std.virality.emotions) || []).map(idx => ({ idx, header: header[idx] })),
+      statements: ((config.std.virality && config.std.virality.statements) || []).map(idx => ({ idx, header: header[idx] }))
     }
   };
 }
@@ -1320,7 +1189,10 @@ function calcAudience(rows, config) {
     age: freq(config.std.audience.age),
     freqNew: freq(config.std.audience.freqNew),
     freqProd: freq(config.std.audience.freqProd),
-    freqBK: freq(config.std.audience.freqBK)
+    freqBK: freq(config.std.audience.freqBK),
+    phrases: freq(config.std.audience.phrases),
+    socialActions: freq(config.std.audience.socialActions),
+    shareMemes: freq(config.std.audience.shareMemes)
   };
 }
 
@@ -1348,11 +1220,11 @@ function calcSignificance(stdRes, concepts, n) {
     });
   }
 
-  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent', 'virality'].forEach(k => {
+  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent'].forEach(k => {
     if (stdRes.top2[k]) signif.top2[k] = labelsFor(stdRes.top2[k]);
   });
 
-  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent', 'virality'].forEach(k => {
+  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent'].forEach(k => {
     if (!stdRes.scales[k]) return;
     signif.scales[k] = {};
     ['top2', '1', '2', '3', '4', '5'].forEach(level => {
@@ -1603,7 +1475,7 @@ function makeSummarySheetStyled(stdRes, concepts, signifRes, extraResults = []) 
     row++;
   });
 
-  const hasDirectLike = false && !!stdRes.direct.likeMost;
+  const hasDirectLike = !!stdRes.direct.likeMost;
   const hasDirectBuy = !!stdRes.direct.buyFirst;
   const hasDirectShare = !!stdRes.direct.shareFirst;
   if (hasDirectLike || hasDirectBuy || hasDirectShare) {
@@ -1702,7 +1574,7 @@ function makeFullSheetStyled(stdRes, concepts, extraResults = []) {
     row++;
   }
 
-  const hasDirectLike = false && !!stdRes.direct.likeMost;
+  const hasDirectLike = !!stdRes.direct.likeMost;
   const hasDirectBuy = !!stdRes.direct.buyFirst;
   const hasDirectShare = !!stdRes.direct.shareFirst;
   if (hasDirectLike || hasDirectBuy || hasDirectShare) {
@@ -1810,43 +1682,28 @@ function makeSignifSheetStyled(stdRes, concepts, signifRes, extraResults = []) {
 }
 
 function calcAgeBreakdown(rows, config, concepts, header) {
-  const audienceType = detectAudienceType(rows, config.std.audience.age);
   const ageColIdx = config.std.audience.age;
   if (ageColIdx == null || ageColIdx < 0) return null;
-
-  function parseAge(v) {
-    if (v == null || v === '') return null;
-    if (typeof v === 'number') return v;
-    const m = String(v).match(/(\d+)/);
-    return m ? Number(m[1]) : null;
-  }
-
-  const defs = audienceType === 'teen' ? TEEN_AGEGROUPS : [
+  const audienceType = detectAudienceTypeByRows(rows, ageColIdx);
+  const defs = audienceType === 'teen' ? TEEN_AGE_GROUPS : [
     { key: '18-24', label: '18-24', min: 18, max: 24 },
     { key: '25-34', label: '25-34', min: 25, max: 34 },
     { key: '35-44', label: '35-44', min: 35, max: 44 },
     { key: '45+', label: '45+', min: 45, max: 200 }
   ];
-
   const buckets = defs.map(def => ({ ...def, rows: [] }));
   let unassigned = 0;
-
   rows.forEach(r => {
-    const age = parseAge(getCell(r, ageColIdx));
+    const age = parseAgeValue(getCell(r, ageColIdx));
     const found = buckets.find(g => age != null && age >= g.min && age <= g.max);
     if (found) found.rows.push(r); else unassigned++;
   });
-
+  if (ageToggleHint) ageToggleHint.textContent = audienceType === 'teen' ? 'Подростковая база: 14-16 / 17-19.' : 'Широкая аудитория: 18-24 / 25-34 / 35-44 / 45+.';
   return {
+    audienceType,
     total: rows.length,
     unassigned,
-    groups: buckets.map(g => ({
-      key: g.key,
-      label: g.label,
-      n: g.rows.length,
-      stdRes: calcStandardBlocks(g.rows, config, concepts, header),
-      extraRes: calcExtraBlocks(g.rows, config, concepts, header)
-    }))
+    groups: buckets.map(g => ({ key: g.key, label: g.label, n: g.rows.length, stdRes: calcStandardBlocks(g.rows, config, concepts, header), extraRes: calcExtraBlocks(g.rows, config, concepts, header) }))
   };
 }
 
@@ -1855,7 +1712,7 @@ function calcAgeSignificance(ageData, totalStdRes, concepts, totalExtraRes = [])
   const out = { main: {}, image: {}, extra: {} };
   const keys = ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent'];
   keys.forEach(key => {
-    out.main[key] = AGE_GROUPS.map((_, gi) => {
+    out.main[key] = ageData.groups.map((_, gi) => {
       const groupVals = ageData.groups[gi].stdRes.top2[key] || [];
       const totalVals = totalStdRes.top2[key] || [];
       return groupVals.map((p, ci) => {
@@ -1865,7 +1722,7 @@ function calcAgeSignificance(ageData, totalStdRes, concepts, totalExtraRes = [])
     });
   });
   Object.keys(totalStdRes.image || {}).forEach(label => {
-    out.image[label] = AGE_GROUPS.map((_, gi) => {
+    out.image[label] = ageData.groups.map((_, gi) => {
       const groupVals = ageData.groups[gi].stdRes.image?.[label] || [];
       const totalVals = totalStdRes.image?.[label] || [];
       return groupVals.map((p, ci) => {
@@ -1875,7 +1732,7 @@ function calcAgeSignificance(ageData, totalStdRes, concepts, totalExtraRes = [])
     });
   });
   totalExtraRes.filter(x => x.kind === 'scale5_by_concept').forEach(item => {
-    out.extra[item.title] = AGE_GROUPS.map((_, gi) => {
+    out.extra[item.title] = ageData.groups.map((_, gi) => {
       const found = ageData.groups[gi].extraRes.find(x => x.title === item.title);
       const groupVals = found ? found.dist.map(d => d.top2) : [];
       const totalVals = item.dist.map(d => d.top2);
@@ -1891,13 +1748,11 @@ function calcAgeSignificance(ageData, totalStdRes, concepts, totalExtraRes = [])
 
 function makeAgeSheetStyled(ageData, ageSignif, totalStdRes, totalExtraRes, concepts) {
   const ws = {};
-  const subCols = ['Total'].concat((ageData.groups || []).map(g => g.label));
+  const subCols = ['Total', ...ageData.groups.map(g => g.label)];
   const width = subCols.length + 1;
   const lastCol = concepts.length * width;
-  ws['!cols'] = [{ wch: 30 }, ...Array.from({ length: concepts.length }, (_, i) => ([{ wch: 9 },{ wch: 9 },{ wch: 9 },{ wch: 9 },{ wch: 9 },{ wch: 3 }][i%6]))];
-  // rebuild cols correctly
   ws['!cols'] = [{ wch: 30 }];
-  for (let i = 0; i < concepts.length; i++) { for (let j = 0; j < subCols.length; j++) ws['!cols'].push({ wch: 8 }); ws['!cols'].push({ wch: 2 }); }
+  for (let i = 0; i < concepts.length; i++) { subCols.forEach(() => ws['!cols'].push({ wch: 8 })); ws['!cols'].push({ wch: 2 }); }
   let row = 0;
   setCell(ws, row, 0, 'ВОЗРАСТ', STYLES.title);
   mergeRange(ws, row, 0, row, lastCol);
@@ -1938,7 +1793,7 @@ function makeAgeSheetStyled(ageData, ageSignif, totalStdRes, totalExtraRes, conc
     concepts.forEach((_, ci) => {
       const start = 1 + ci * width;
       setPercent(ws, row, start, totalVals[ci] || 0, withAlignCenter(STYLES.top2Row));
-      AGE_GROUPS.forEach((_, gi) => {
+      ageData.groups.forEach((_, gi) => {
         const state = signifByAge?.[gi]?.[ci] || '';
         const val = groupValsByAge[gi]?.[ci] || 0;
         setPercent(ws, row, start + gi + 1, val, styleForAgeState(state));
@@ -1950,23 +1805,23 @@ function makeAgeSheetStyled(ageData, ageSignif, totalStdRes, totalExtraRes, conc
   writeHeader('ОСНОВНЫЕ И ДОПОЛНИТЕЛЬНЫЕ МЕТРИКИ');
   [['Нравится название','like'],['Подходит для блюда / продукта','fitDish'],['Подходит для бренда','fitBrand'],['Намерение посетить БК','visitBK'],['Намерение купить','buyDish'],['Намерение рассказать / поделиться','shareIntent']].forEach(([label,key]) => {
     if (!totalStdRes.top2[key]) return;
-    writeMetricRow(label, totalStdRes.top2[key], AGE_GROUPS.map((_,gi)=>ageData.groups[gi].stdRes.top2[key]||[]), ageSignif.main[key]);
+    writeMetricRow(label, totalStdRes.top2[key], ageData.groups.map((_,gi)=>ageData.groups[gi].stdRes.top2[key]||[]), ageSignif.main[key]);
   });
   totalExtraRes.filter(x => x.kind === 'scale5_by_concept').forEach(item => {
-    writeMetricRow(item.title, item.dist.map(d=>d.top2), AGE_GROUPS.map((_,gi)=>{const found=ageData.groups[gi].extraRes.find(x=>x.title===item.title); return found?found.dist.map(d=>d.top2):[];}), ageSignif.extra[item.title]);
+    writeMetricRow(item.title, item.dist.map(d=>d.top2), ageData.groups.map((_,gi)=>{const found=ageData.groups[gi].extraRes.find(x=>x.title===item.title); return found?found.dist.map(d=>d.top2):[];}), ageSignif.extra[item.title]);
   });
 
   row++;
   writeHeader('ИМИДЖЕВЫЕ ВЫСКАЗЫВАНИЯ');
   Object.entries(totalStdRes.image || {}).forEach(([label, totalVals]) => {
-    writeMetricRow(label, totalVals, AGE_GROUPS.map((_,gi)=>ageData.groups[gi].stdRes.image?.[label]||[]), ageSignif.image[label]);
+    writeMetricRow(label, totalVals, ageData.groups.map((_,gi)=>ageData.groups[gi].stdRes.image?.[label]||[]), ageSignif.image[label]);
   });
 
   row += 2;
   setCell(ws, row, 0, 'РАНКИНГ ПО ВОЗРАСТАМ ПО МЕТРИКЕ «НРАВИТСЯ НАЗВАНИЕ»', STYLES.section);
   mergeRange(ws, row, 0, row, 5);
   row++;
-  ['Ранг','Total','18-24','25-34','35-44','45+'].forEach((h,i)=>setCell(ws,row,i, h, STYLES.headerCenter));
+  ['Ранг','Total', ...ageData.groups.map(g => g.label)].forEach((h,i)=>setCell(ws,row,i, h, STYLES.headerCenter));
   row++;
   const totalRank = concepts.map((c,i)=>({label:c.label,v:(totalStdRes.top2.like||[])[i]||0})).sort((a,b)=>b.v-a.v);
   const groupRanks = ageData.groups.map(group => concepts.map((c,i)=>({label:c.label,v:(group.stdRes.top2.like||[])[i]||0})).sort((a,b)=>b.v-a.v));
@@ -1985,6 +1840,50 @@ function makeAgeSheetStyled(ageData, ageSignif, totalStdRes, totalExtraRes, conc
   }
 
   applySheetRangeRef(ws, row, Math.max(lastCol, 5));
+  return ws;
+}
+
+function calcNoveltySegments(rows, config) {
+  const idx = config.std.audience.freqNew;
+  if (idx == null || idx < 0) return null;
+  const innovators = [], traditional = [];
+  rows.forEach(r => {
+    const t = normalizeText(String(getCell(r, idx) || ''));
+    if (t.includes('в каждом заказе') || t.includes('в большей части заказов')) innovators.push(r);
+    else traditional.push(r);
+  });
+  return { title: 'Новиночники vs традиционалисты', groups: [ { label: 'Новиночники', rows: innovators }, { label: 'Традиционалисты', rows: traditional } ] };
+}
+
+function calcSocialSegments(rows, config) {
+  const pIdx = config.std.audience.phrases, aIdx = config.std.audience.socialActions, sIdx = config.std.audience.shareMemes;
+  if (pIdx == null && aIdx == null && sIdx == null) return null;
+  const active = [], other = [];
+  rows.forEach(r => {
+    const pv = parseScaleValue(getCell(r, pIdx));
+    const phraseOk = pv === 4 || pv === 5;
+    const actionText = normalizeText(String(getCell(r, aIdx) || ''));
+    const actionOk = aIdx != null ? !actionText.includes('ничего из перечисленного') : false;
+    const shareText = normalizeText(String(getCell(r, sIdx) || ''));
+    const shareOk = shareText.includes('несколько раз в день') || shareText.includes('раз в день') || shareText.includes('несколько раз в неделю');
+    if (phraseOk && actionOk && shareOk) active.push(r); else other.push(r);
+  });
+  return { title: 'Активно пользуются соцсетями / интересуются новинками', groups: [ { label: 'Активные', rows: active }, { label: 'Остальные', rows: other } ] };
+}
+
+function makeSegmentSheetStyled(segmentData, config, concepts, header) {
+  if (!segmentData) return null;
+  const ws = {};
+  ws['!cols'] = [{ wch: 42 }, ...segmentData.groups.map(() => ({ wch: 18 }))];
+  let row = 0;
+  setCell(ws, row, 0, segmentData.title, STYLES.title); mergeRange(ws, row, 0, row, segmentData.groups.length); row++;
+  setCell(ws, row, 0, 'Метрика', STYLES.headerCenter); segmentData.groups.forEach((g,i)=>setCell(ws,row,i+1, `${g.label} (n=${g.rows.length})`, STYLES.headerCenter)); row++;
+  [['Нравится название','like'],['Подходит для блюда / продукта','fitDish'],['Подходит для бренда','fitBrand'],['Намерение посетить БК','visitBK'],['Намерение купить','buyDish'],['Намерение рассказать / поделиться','shareIntent']].forEach(([label,key]) => {
+    setCell(ws,row,0,label,STYLES.label);
+    segmentData.groups.forEach((g,i)=>{ const sr = calcStandardBlocks(g.rows, config, concepts, header); const vals = sr.top2[key] || []; setPercent(ws,row,i+1, vals.length ? Math.max(...vals) : 0, STYLES.percent); });
+    row++;
+  });
+  applySheetRangeRef(ws, row, segmentData.groups.length);
   return ws;
 }
 
@@ -2011,7 +1910,10 @@ function makeAudienceSheetStyled(audienceRes) {
   row = writeAudienceBlock(ws, row, 'АУДИТОРИЯ И ПОВЕДЕНИЕ', [
     { title: 'Частота взятия новинок', rows: audienceRes.freqNew },
     { title: 'Частота покупки продукта', rows: audienceRes.freqProd },
-    { title: 'Частота посещения Бургер Кинг', rows: audienceRes.freqBK }
+    { title: 'Частота посещения Бургер Кинг', rows: audienceRes.freqBK },
+    { title: 'Насколько подходят фразы', rows: audienceRes.phrases },
+    { title: 'Что делали за последний месяц в соцсетях', rows: audienceRes.socialActions },
+    { title: 'Как часто делятся мемами / видео / постами', rows: audienceRes.shareMemes }
   ]);
 
   applySheetRangeRef(ws, row, 1);
@@ -2047,3 +1949,48 @@ function writeAudienceBlock(ws, startRow, sectionTitle, blocks) {
 
   return row;
 }
+
+
+baseInput?.addEventListener('change', async (e) => {
+  try {
+    baseFile = e.target.files?.[0];
+    if (!baseFile) return;
+    resetState();
+    status('Чтение файла...');
+    const data = await baseFile.arrayBuffer();
+    const wb = XLSX.read(data, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    parsed = splitHeaderRows(XLSX.utils.sheet_to_json(ws, { header: 1, raw: false }));
+    autoMapping = autoDetectMapping(parsed.header);
+    renderStandardMappingUI(autoMapping, parsed.header);
+    renderExtraQuestionsUI(autoMapping);
+    mappingSection.style.display = ''; extraSection.style.display = ''; runSection.style.display = '';
+    const audienceType = detectAudienceTypeByRows(parsed.rows, autoMapping.std.audience.age);
+    if (ageToggleHint) ageToggleHint.textContent = audienceType === 'teen' ? 'Подростковая база: 14-16 / 17-19.' : 'Широкая аудитория: 18-24 / 25-34 / 35-44 / 45+.';
+    status('Файл загружен. Проверьте найденные вопросы.', true, false);
+  } catch (err) { status('Ошибка при чтении файла: ' + err.message, false, true); }
+});
+
+runBtn?.addEventListener('click', () => {
+  try {
+    if (!parsed || !autoMapping) throw new Error('Сначала загрузите базу.');
+    userConfig = collectUserConfig(autoMapping);
+    const { header, rows } = parsed;
+    const concepts = inferConcepts(header, userConfig);
+    const stdRes = calcStandardBlocks(rows, userConfig, concepts, header);
+    const extraRes = calcExtraBlocks(rows, userConfig, concepts, header);
+    const audienceRes = calcAudience(rows, userConfig);
+    const signifRes = calcSignificance(stdRes, concepts, stdRes.n);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, makeSummarySheetStyled(stdRes, concepts, signifRes, extraRes), 'Саммари');
+    XLSX.utils.book_append_sheet(wb, makeFullSheetStyled(stdRes, concepts, extraRes.filter(x => x.kind === 'scale5_by_concept')), 'Полные таблицы');
+    XLSX.utils.book_append_sheet(wb, makeSignifSheetStyled(stdRes, concepts, signifRes, extraRes.filter(x => x.kind === 'scale5_by_concept')), 'Значимости');
+    XLSX.utils.book_append_sheet(wb, makeAudienceSheetStyled(audienceRes), 'Аудитория');
+    if (ageToggle?.checked) { const ageData = calcAgeBreakdown(rows, userConfig, concepts, header); if (ageData) { const ageSignif = calcAgeSignificance(ageData, stdRes, concepts, extraRes.filter(x => x.kind === 'scale5_by_concept')); XLSX.utils.book_append_sheet(wb, makeAgeSheetStyled(ageData, ageSignif, stdRes, extraRes.filter(x => x.kind === 'scale5_by_concept'), concepts), 'Возраст'); } }
+    if (noveltyToggle?.checked) { const s = makeSegmentSheetStyled(calcNoveltySegments(rows, userConfig), userConfig, concepts, header); if (s) XLSX.utils.book_append_sheet(wb, s, 'Новиночники'); }
+    if (socialToggle?.checked) { const s = makeSegmentSheetStyled(calcSocialSegments(rows, userConfig), userConfig, concepts, header); if (s) XLSX.utils.book_append_sheet(wb, s, 'Соцсети'); }
+    const outName = `Topline_${baseFile.name.replace(/\.[^.]+$/, '')}.xlsx`;
+    XLSX.writeFile(wb, outName);
+    status('Topline успешно собран.', true, false);
+  } catch (err) { status('Ошибка при сборке topline: ' + err.message, false, true); }
+});
