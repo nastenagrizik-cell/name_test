@@ -40,6 +40,11 @@
 .extra-card-compact-body{display:none;padding:12px 14px;border-top:1px solid var(--line)}
 .extra-card-compact.open .extra-card-compact-body{display:block}
 .extra-card-compact.open .metric-chevron{transform:rotate(180deg)}
+    .run-toggles-grid{display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:12px}
+    .metric-group.virality-block .metric-group-head{background:#f7fbff}
+    .metric-subgroup{border:1px solid #e8eef5;border-radius:12px;padding:10px 12px;margin:10px 0;background:#fff}
+    .metric-subgroup-title{font-size:13px;font-weight:800;margin:0 0 8px;color:var(--text)}
+    @media (max-width:980px){.run-toggles-grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -56,7 +61,7 @@
         </section>
         <section id="mappingSection" class="panel" style="display:none;">
           <div class="panel-head"><span class="step">Шаг 2</span><h2>Стандартные вопросы</h2><p class="panel-subtitle">Проверьте, какие основные вопросы сервис определил автоматически.</p></div>
-          <div class="panel-body"><div id="standardGroups" class="mapping-grid"></div></div>
+          <div class="panel-body"><div id="standardGroups" class="mapping-grid"></div><div id="viralityGroups" class="mapping-grid" style="margin-top:16px"></div></div>
         </section>
         <section id="extraSection" class="panel" style="display:none;">
           <div class="panel-head"><span class="step">Шаг 3</span><h2>Дополнительные метрики</h2><p class="panel-subtitle">Если в базе есть другие закрытые вопросы, их можно вывести в topline отдельными метриками.</p></div>
@@ -65,13 +70,31 @@
         <section id="runSection" class="panel" style="display:none;">
           <div class="panel-head"><span class="step">Шаг 4</span><h2>Расчёт</h2><p class="panel-subtitle">После проверки вопросов сервис сформирует Excel-файл со всеми листами topline.</p></div>
           <div class="panel-body">
+            <div class="run-toggles-grid">
             <div class="age-toggle-wrap">
               <label class="toggle-pill">
                 <input type="checkbox" id="ageToggle" />
                 <span class="toggle-track"><span class="toggle-thumb"></span></span>
                 <span class="toggle-label">Добавить лист с разбивкой по возрастам</span>
               </label>
-              <p class="toggle-hint">18-24, 25-34, 35-44, 45+ — все метрики по каждому названию с проверкой значимости относительно тотал.</p>
+              <p id="ageToggleHint" class="toggle-hint">Автоопределение базы: взрослая 18-24 / 25-34 / 35-44 / 45+ или подростки 14-16 / 17-19.</p>
+            </div>
+            <div class="age-toggle-wrap">
+              <label class="toggle-pill">
+                <input type="checkbox" id="noveltyToggle" />
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                <span class="toggle-label">Добавить лист новиночники / традиционалисты</span>
+              </label>
+              <p class="toggle-hint">Группировка по вопросу о частоте покупки новинок.</p>
+            </div>
+            <div class="age-toggle-wrap">
+              <label class="toggle-pill">
+                <input type="checkbox" id="socialToggle" />
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                <span class="toggle-label">Добавить лист соцсети / интерес к новинкам</span>
+              </label>
+              <p class="toggle-hint">Композит по фразам, активности в соцсетях и шарингу мемов/постов.</p>
+            </div>
             </div>
             <button id="runBtn" class="primary-btn">Посчитать topline</button>
           </div>
