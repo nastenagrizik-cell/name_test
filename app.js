@@ -493,7 +493,7 @@ if (typeof XLSX !== 'object') {
       XLSX.utils.book_append_sheet(outWb, makeSignifSheetStyled(stdResults, concepts, signifRes, extraResults), 'значимости');
       XLSX.utils.book_append_sheet(outWb, makeAudienceSheetStyled(audienceRes), 'Аудитория');
 
-      if (ageToggle && ageToggle.checked) {
+      if (ageToggleEl && ageToggleEl.checked) {
         if (userConfig.std.audience.age == null || userConfig.std.audience.age < 0) {
           status('Внимание: столбец возраста не найден в базе — лист по возрастам не добавлен.', false, true);
         } else {
@@ -681,6 +681,7 @@ function renderStandardMappingUI(mapping, header) {
     { key: 'visitBK', label: 'Намерение посетить БК', type: 'шкала 1–5, Top‑2', indexes: mapping.std.visitBK },
     { key: 'buyDish', label: 'Намерение купить', type: 'шкала 1–5, Top‑2', indexes: mapping.std.buyDish },
     { key: 'shareIntent', label: 'Намерение рассказать / поделиться', type: 'шкала 1–5, Top‑2', indexes: mapping.std.shareIntent },
+    { key: 'virality', label: 'Виральность', type: 'mixed', indexes: mapping.std.virality },
     { key: 'directCompare', label: 'Прямое сравнение', type: 'single choice', indexes: [...mapping.std.directLike, ...mapping.std.directBuy, ...mapping.std.directShare] }
   ];
 
@@ -1053,7 +1054,7 @@ function calcStandardBlocks(rows, config, concepts, header) {
       fitBrand: dist5(config.std.fitBrand),
       visitBK: dist5(config.std.visitBK),
       buyDish: dist5(config.std.buyDish),
-      shareIntent: dist5(config.std.shareIntent)
+      shareIntent: dist5(config.std.shareIntent), virality: dist5(config.std.virality)
     },
     top2: {
       like: top2ByCols(config.std.like),
@@ -1061,7 +1062,7 @@ function calcStandardBlocks(rows, config, concepts, header) {
       fitBrand: top2ByCols(config.std.fitBrand),
       visitBK: top2ByCols(config.std.visitBK),
       buyDish: top2ByCols(config.std.buyDish),
-      shareIntent: top2ByCols(config.std.shareIntent)
+      shareIntent: top2ByCols(config.std.shareIntent), virality: top2ByCols(config.std.virality)
     },
     image: imageBlock(),
     direct: {
@@ -1206,11 +1207,11 @@ function calcSignificance(stdRes, concepts, n) {
     });
   }
 
-  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent'].forEach(k => {
+  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent', 'virality'].forEach(k => {
     if (stdRes.top2[k]) signif.top2[k] = labelsFor(stdRes.top2[k]);
   });
 
-  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent'].forEach(k => {
+  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent', 'virality'].forEach(k => {
     if (!stdRes.scales[k]) return;
     signif.scales[k] = {};
     ['top2', '1', '2', '3', '4', '5'].forEach(level => {
@@ -1461,7 +1462,7 @@ function makeSummarySheetStyled(stdRes, concepts, signifRes, extraResults = []) 
     row++;
   });
 
-  const hasDirectLike = !!stdRes.direct.likeMost;
+  const hasDirectLike = false && !!stdRes.direct.likeMost;
   const hasDirectBuy = !!stdRes.direct.buyFirst;
   const hasDirectShare = !!stdRes.direct.shareFirst;
   if (hasDirectLike || hasDirectBuy || hasDirectShare) {
@@ -1522,7 +1523,7 @@ function makeFullSheetStyled(stdRes, concepts, extraResults = []) {
   mergeRange(ws, row, 0, row, lastCol);
   row++;
 
-  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent'].forEach(key => {
+  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent', 'virality'].forEach(key => {
     if (!hasMetric(stdRes, key)) return;
     setCell(ws, row, 0, blockTitleForKey(key), STYLES.blockTitle);
     mergeRange(ws, row, 0, row, lastCol);
@@ -1560,7 +1561,7 @@ function makeFullSheetStyled(stdRes, concepts, extraResults = []) {
     row++;
   }
 
-  const hasDirectLike = !!stdRes.direct.likeMost;
+  const hasDirectLike = false && !!stdRes.direct.likeMost;
   const hasDirectBuy = !!stdRes.direct.buyFirst;
   const hasDirectShare = !!stdRes.direct.shareFirst;
   if (hasDirectLike || hasDirectBuy || hasDirectShare) {
@@ -1668,6 +1669,7 @@ function makeSignifSheetStyled(stdRes, concepts, signifRes, extraResults = []) {
 }
 
 function calcAgeBreakdown(rows, config, concepts, header) {
+  const audienceType = detectAudienceType(rows, config.std.audience.age);
   const ageColIdx = config.std.audience.age;
   if (ageColIdx == null || ageColIdx < 0) return null;
 
@@ -1678,7 +1680,7 @@ function calcAgeBreakdown(rows, config, concepts, header) {
     return m ? Number(m[1]) : null;
   }
 
-  const defs = [
+  const defs = audienceType === 'teen' ? TEEN_AGEGROUPS : [
     { key: '18-24', label: '18-24', min: 18, max: 24 },
     { key: '25-34', label: '25-34', min: 25, max: 34 },
     { key: '35-44', label: '35-44', min: 35, max: 44 },
@@ -1710,7 +1712,7 @@ function calcAgeBreakdown(rows, config, concepts, header) {
 function calcAgeSignificance(ageData, totalStdRes, concepts, totalExtraRes = []) {
   const alphaZ = 1.96;
   const out = { main: {}, image: {}, extra: {} };
-  const keys = ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent'];
+  const keys = ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent', 'virality'];
   keys.forEach(key => {
     out.main[key] = AGE_GROUPS.map((_, gi) => {
       const groupVals = ageData.groups[gi].stdRes.top2[key] || [];
