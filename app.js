@@ -547,6 +547,138 @@ function splitHeaderRows(data) {
   return { header, rows };
 }
 
+const ageToggleEl = document.getElementById('ageToggle');
+const noveltyToggleEl = document.getElementById('noveltyToggle');
+const socialToggleEl = document.getElementById('socialToggle');
+const TEEN_AGEGROUPS = [
+  { key: '14-16', label: '14-16', min: 14, max: 16 },
+  { key: '17-19', label: '17-19', min: 17, max: 19 }
+];
+
+function looksLikeBuyIntentQuestion(h) {
+  const t = normalizeText(h);
+  return (
+    t.includes('хотели бы купить') ||
+    t.includes('хотелось бы купить') ||
+    t.includes('намерение купить') ||
+    t.includes('вы бы купили') ||
+    t.includes('купили бы') ||
+    t.includes('захотели бы купить') ||
+    t.includes('хотели бы заказать') ||
+    t.includes('заказали бы') ||
+    t.includes('взяли бы')
+  );
+}
+
+function looksLikeViralityEmotionQuestion(h) {
+  const t = normalizeText(h);
+  return t.includes('эмоци') || t.includes('ассоциац') || t.includes('чувства вызывает');
+}
+
+function looksLikeViralityStatementQuestion(h) {
+  const t = normalizeText(h);
+  const include = [
+    'звучит необычно', 'звучит скучно', 'люди бы обсуждали', 'звучит хайпово',
+    'звучит трендово', 'получился бы мем', 'стал бы мемом', 'обсуждали такое название', 'вираль'
+  ];
+  const exclude = [
+    'вкусный соус', 'название легко запомнить', 'понятно, какой это вкус',
+    'пикантный', 'острый соус', 'хочется попробовать', 'узнать, что это такое'
+  ];
+  return include.some(x => t.includes(normalizeText(x))) && !exclude.some(x => t.includes(normalizeText(x)));
+}
+
+function detectAudienceType(rows, ageColIdx) {
+  if (ageColIdx == null || ageColIdx < 0) return 'adult';
+  const ages = rows.map(r => parseAgeValue(getCell(r, ageColIdx))).filter(v => v != null);
+  if (!ages.length) return 'adult';
+  return Math.max(...ages) <= 19 ? 'teen' : 'adult';
+}
+
+function findHeaderIndex(header, tester) {
+  for (let i = 0; i < header.length; i++) {
+    if (tester(String(header[i] || ''))) return i;
+  }
+  return null;
+}
+
+function calcNoveltySegments(rows, config) {
+  const idx = config && config.std && config.std.audience ? config.std.audience.freqNew : null;
+  if (idx == null || idx < 0) return null;
+  const innovators = [];
+  const traditional = [];
+  rows.forEach(r => {
+    const t = normalizeText(String(getCell(r, idx) || ''));
+    if (t.includes('в каждом заказе') || t.includes('в большей части заказ')) innovators.push(r);
+    else traditional.push(r);
+  });
+  if (!innovators.length && !traditional.length) return null;
+  return {
+    title: 'Новиночники vs традиционалисты',
+    groups: [
+      { key: 'innovators', label: 'Новиночники', rows: innovators },
+      { key: 'traditional', label: 'Традиционалисты', rows: traditional }
+    ]
+  };
+}
+
+function calcSocialSegments(rows, header) {
+  const phraseIdxs = header.map((h, i) => ({ h: String(h || ''), i })).filter(x => {
+    const t = normalizeText(x.h);
+    return t.includes('обычно в курсе новых блюд и трендов в фастфуде') ||
+           t.includes('друзья часто спрашивают меня, что нового стоит попробовать в фастфуде');
+  }).map(x => x.i);
+  const monthIdx = findHeaderIndex(header, h => normalizeText(h).includes('что из этого вы делали за последний месяц'));
+  const shareIdx = findHeaderIndex(header, h => normalizeText(h).includes('как часто вы делитесь с друзьями мемами, видео, постами'));
+  if (!phraseIdxs.length && monthIdx == null && shareIdx == null) return null;
+  const active = [];
+  const other = [];
+  rows.forEach(r => {
+    const phraseOk = phraseIdxs.some(i => {
+      const v = parseScaleValue(getCell(r, i));
+      return v === 4 || v === 5;
+    });
+    const monthText = normalizeText(String(monthIdx == null ? '' : getCell(r, monthIdx) || ''));
+    const monthOk = monthIdx == null ? false : !monthText.includes('ничего из перечисленного');
+    const shareText = normalizeText(String(shareIdx == null ? '' : getCell(r, shareIdx) || ''));
+    const shareOk = shareText.includes('несколько раз в день') || shareText.includes('раз в день') || shareText.includes('несколько раз в неделю');
+    if (phraseOk && monthOk && shareOk) active.push(r); else other.push(r);
+  });
+  return {
+    title: 'Активны в соцсетях и интересуются новинками',
+    groups: [
+      { key: 'active', label: 'Активные / интересуются новинками', rows: active },
+      { key: 'other', label: 'Остальные', rows: other }
+    ]
+  };
+}
+
+function makeSegmentSheetStyled(segmentData, config, concepts, header) {
+  if (!segmentData || !segmentData.groups || !segmentData.groups.length) return null;
+  const ws = {};
+  const lastCol = segmentData.groups.length;
+  ws['!cols'] = [{ wch: 42 }, ...Array.from({ length: lastCol }, () => ({ wch: 18 }))];
+  let row = 0;
+  setCell(ws, row, 0, segmentData.title, STYLES.title);
+  mergeRange(ws, row, 0, row, lastCol);
+  row++;
+  setCell(ws, row, 0, 'Метрика', STYLES.headerCenter);
+  segmentData.groups.forEach((g, i) => setCell(ws, row, i + 1, `${g.label} (n=${g.rows.length})`, STYLES.headerCenter));
+  row++;
+  ['like', 'fitDish', 'fitBrand', 'visitBK', 'buyDish', 'shareIntent', 'virality'].forEach(key => {
+    setCell(ws, row, 0, blockTitleForKey(key), STYLES.label);
+    segmentData.groups.forEach((g, i) => {
+      const s = calcStandardBlocks(g.rows, config, concepts, header);
+      const vals = (s && s.top2 && s.top2[key]) ? s.top2[key] : [];
+      const v = vals.length ? Math.max(...vals) : 0;
+      setPercent(ws, row, i + 1, v, STYLES.percent);
+    });
+    row++;
+  });
+  applySheetRangeRef(ws, row, lastCol);
+  return ws;
+}
+
 function autoDetectMapping(header) {
   const std = {
     like: [],
@@ -1062,7 +1194,7 @@ function calcStandardBlocks(rows, config, concepts, header) {
       visitBK: dist5(config.std.visitBK),
       buyDish: dist5(config.std.buyDish),
       shareIntent: dist5(config.std.shareIntent),
-      virality: dist5(config.std.virality)
+      virality: dist5(config.std.virality || [])
     },
     top2: {
       like: top2ByCols(config.std.like),
@@ -1071,7 +1203,7 @@ function calcStandardBlocks(rows, config, concepts, header) {
       visitBK: top2ByCols(config.std.visitBK),
       buyDish: top2ByCols(config.std.buyDish),
       shareIntent: top2ByCols(config.std.shareIntent),
-      virality: top2ByCols(config.std.virality)
+      virality: top2ByCols(config.std.virality || [])
     },
     image: imageBlock(),
     direct: {
@@ -1759,7 +1891,7 @@ function calcAgeSignificance(ageData, totalStdRes, concepts, totalExtraRes = [])
 
 function makeAgeSheetStyled(ageData, ageSignif, totalStdRes, totalExtraRes, concepts) {
   const ws = {};
-  const subCols = ['Total', ...(ageData.groups || []).map(g => g.label)];
+  const subCols = ['Total'].concat((ageData.groups || []).map(g => g.label));
   const width = subCols.length + 1;
   const lastCol = concepts.length * width;
   ws['!cols'] = [{ wch: 30 }, ...Array.from({ length: concepts.length }, (_, i) => ([{ wch: 9 },{ wch: 9 },{ wch: 9 },{ wch: 9 },{ wch: 9 },{ wch: 3 }][i%6]))];
